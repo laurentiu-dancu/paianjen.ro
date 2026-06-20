@@ -2,43 +2,19 @@
 @import "tailwindcss/components";
 @import "tailwindcss/utilities";
 
-/* HTMX loading indicators */
-.htmx-request .htmx-indicator {
-  display: inline;
-}
-.htmx-indicator {
-  display: none;
-}
-.htmx-request.htmx-indicator {
-  display: inline;
-}
-
-/* Smooth transitions for HTMX swaps */
-.htmx-swapping {
-  opacity: 0;
-  transition: opacity 150ms ease-out;
-}
-.htmx-added {
-  opacity: 0;
-}
-.htmx-settling {
-  opacity: 1;
-  transition: opacity 150ms ease-in;
-}
-
 /* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 8px;
 }
 ::-webkit-scrollbar-track {
-  background: #fafaf9;
+  background: #f8fafc;
 }
 ::-webkit-scrollbar-thumb {
-  background: #d6d3d1;
+  background: #cbd5e1;
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #a8a29e;
+  background: #94a3b8;
 }
 
 /* Line clamp utility */

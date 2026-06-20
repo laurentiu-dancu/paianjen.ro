@@ -5,7 +5,5 @@
   "scripts": {
     "deploy": "cd .. && MIX_ENV=prod mix assets.deploy && rm -f _build/esbuild*"
   },
-  "dependencies": {
-    "htmx.org": "^2.0.0"
-  }
+  "dependencies": {}
 }
