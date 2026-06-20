@@ -1,0 +1,36 @@
+name: paianjen
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: paianjen
+      POSTGRES_PASSWORD: paianjen_dev_secret
+      POSTGRES_DB: paianjen_dev
+    ports:
+      - "5434:5432"
+      - "4000:4000"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U paianjen"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: ecto://paianjen:paianjen_dev_secret@localhost:5432/paianjen_dev
+      SECRET_KEY_BASE: dev_secret_key_base_that_is_at_least_64_bytes_long_for_phoenix_zzz
+      PHX_HOST: localhost
+      PORT: 4000
+    network_mode: "service:db"
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:
