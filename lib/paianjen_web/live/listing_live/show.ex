@@ -210,8 +210,13 @@ defmodule PaianjenWeb.ListingLive.Show do
             |> Enum.take(10)
           %>
           <%= if length(images) > 0 do %>
-            <div id="image-slider" class="rounded-lg overflow-hidden h-64 mb-6 relative" phx-hook="ImageSlider" data-images={Jason.encode!(images)}>
-              <img src={Enum.at(images, 0)} alt={"Apartament în #{@group.zone || @group.district}"} class="w-full h-full object-cover" id="slider-img" />
+            <div id="image-slider" class="rounded-lg overflow-hidden mb-6 relative bg-slate-100" phx-hook="ImageSlider" data-images={Jason.encode!(images)}>
+              <img src={Enum.at(images, 0)} alt={"Apartament în #{@group.zone || @group.district}"} class="w-full max-h-[70vh] object-contain bg-slate-100" id="slider-img" onerror="this.style.display='none'; var fb=this.parentElement.querySelector('.img-fallback'); if(fb)fb.style.display='flex';" />
+              <div class="img-fallback absolute inset-0 items-center justify-center bg-slate-100" style="display:none;">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-16 h-16 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 21h16.5A2.25 2.25 0 0022.5 18.75V5.25A2.25 2.25 0 0020.25 3H3.75A2.25 2.25 0 001.5 5.25v13.5A2.25 2.25 0 003.75 21z" />
+                </svg>
+              </div>
               <div class="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5 z-10" id="slider-dots">
                 <%= for {_, i} <- Enum.with_index(images) do %>
                   <button

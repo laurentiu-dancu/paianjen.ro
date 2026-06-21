@@ -48,29 +48,40 @@ Hooks.ImageSlider = {
 
     this.currentIndex = 0;
     this.imgEl = document.getElementById("slider-img");
+    this.dots = document.querySelectorAll("#slider-dots button");
 
-    window.slideTo = (index) => {
+    this.updateDots = () => {
+      if (!this.dots) return;
+      this.dots.forEach((dot, i) => {
+        if (i === this.currentIndex) {
+          dot.className = "w-2 h-2 rounded-full bg-white shadow";
+        } else {
+          dot.className = "w-2 h-2 rounded-full bg-white/60";
+        }
+      });
+    };
+
+    this.goTo = (index) => {
       this.currentIndex = index;
       this.imgEl.src = images[index];
       this.updateDots();
     };
 
+    window.slideTo = (index) => this.goTo(index);
+
     window.slideNext = () => {
-      this.currentIndex = (this.currentIndex + 1) % images.length;
-      this.imgEl.src = images[this.currentIndex];
-      this.updateDots();
+      this.goTo((this.currentIndex + 1) % images.length);
     };
 
     window.slidePrev = () => {
-      this.currentIndex = (this.currentIndex - 1 + images.length) % images.length;
-      this.imgEl.src = images[this.currentIndex];
-      this.updateDots();
+      this.goTo((this.currentIndex - 1 + images.length) % images.length);
     };
 
     this.updateDots();
   },
   updated() {
     this.imgEl = document.getElementById("slider-img");
+    this.dots = document.querySelectorAll("#slider-dots button");
   },
 };
 
