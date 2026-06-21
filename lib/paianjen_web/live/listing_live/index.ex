@@ -476,8 +476,12 @@ defmodule PaianjenWeb.ListingLive.Index do
       <.spider_web days_on_market={@group.days_on_market} />
 
       <div class="flex gap-0">
-        <div :if={@group.image_url} class="hidden sm:block w-44 flex-shrink-0">
-          <.image_with_fallback src={@group.image_url} alt={"Apartament #{@group.district || @group.city}"} class="absolute inset-0 w-full h-full" />
+        <div class="hidden sm:block w-44 flex-shrink-0 relative">
+          <%= if @group.image_url do %>
+            <.image_with_fallback src={@group.image_url} alt={"Apartament #{@group.district || @group.city}"} class="absolute inset-0 w-full h-full" />
+          <% else %>
+            <.no_image_placeholder class="absolute inset-0 w-full h-full" />
+          <% end %>
         </div>
 
         <div class="flex-1 p-5 min-w-0">
@@ -520,6 +524,12 @@ defmodule PaianjenWeb.ListingLive.Index do
                 <%= if has_zero_commission && !show_commission do %>
                   <span class="px-2 py-0.5 bg-blue-50 text-blue-700 text-xs rounded-full border border-blue-100">comision 0</span>
                 <% end %>
+                <%= if show_commission do %>
+                  <% min_comm = Enum.map(active_listings, & &1[:agency_commission]) |> Enum.min(fn -> nil end) %>
+                  <%= if min_comm && min_comm > 0 do %>
+                    <span class="px-2 py-0.5 bg-orange-50 text-orange-700 text-xs rounded-full border border-orange-100">comision <%= format_price(min_comm) %> €</span>
+                  <% end %>
+                <% end %>
               </div>
               <p class="text-xs text-slate-400 mt-0.5">
                 <%= if @group.min_price && @group.min_surface, do: format_price(@group.min_price / @group.min_surface) <> " €/m²", else: "" %>
@@ -527,14 +537,6 @@ defmodule PaianjenWeb.ListingLive.Index do
               </p>
             </div>
 
-            <%= if @group.parking_price do %>
-              <div class="flex items-center gap-1.5">
-                <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M8 7h8m-8 4h8m-4 4v4m-4-4h8a2 2 0 002-2V5a2 2 0 00-2-2H6a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                </svg>
-                <span class="text-sm text-slate-700">Parcare <span class="text-slate-900"><%= format_price(@group.parking_price) %> €</span></span>
-              </div>
-            <% end %>
           </div>
 
           <div class="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-slate-500 mb-4">
@@ -545,15 +547,6 @@ defmodule PaianjenWeb.ListingLive.Index do
               <%= if @group.min_surface, do: (if @group.max_surface && @group.min_surface == @group.max_surface, do: "#{round(@group.min_surface)}", else: "#{round(@group.min_surface)}–#{round(@group.max_surface)}"), else: "N/A" %> m²
             </span>
 
-            <%= if @group.floor && @group.total_floors do %>
-              <span class="flex items-center gap-1">
-                <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                </svg>
-                Et. <%= @group.floor %>/<%= @group.total_floors %>
-              </span>
-            <% end %>
-
             <%= if @group.rooms do %>
               <span class="flex items-center gap-1">
                 <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -563,19 +556,26 @@ defmodule PaianjenWeb.ListingLive.Index do
               </span>
             <% end %>
 
-            <%= if @group.year_built do %>
-              <span>An <%= @group.year_built %></span>
+            <%= if @group.parking_price do %>
+              <span class="flex items-center gap-1">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M8 7h8m-8 4h8m-4 4v4m-4-4h8a2 2 0 002-2V5a2 2 0 00-2-2H6a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+                Parcare <%= format_price(@group.parking_price) %> €
+              </span>
             <% end %>
 
-            <% show_comm = !Enum.any?(active_listings, &(&1[:agency_commission] == 0)) && !Enum.any?(active_listings, & &1[:is_private]) && length(active_listings) > 0 %>
-            <%= if show_comm do %>
-              <% avg_comm = Enum.sum(Enum.map(active_listings, & &1[:agency_commission])) / length(active_listings) %>
-              <span class="flex items-center gap-1 text-slate-400">
+            <%= if @group.floor && @group.total_floors do %>
+              <span class="flex items-center gap-1">
                 <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                 </svg>
-                Comision mediu <%= format_price(avg_comm) %> €
+                Et. <%= @group.floor %>/<%= @group.total_floors %>
               </span>
+            <% end %>
+
+            <%= if @group.year_built do %>
+              <span>An <%= @group.year_built %></span>
             <% end %>
           </div>
 
