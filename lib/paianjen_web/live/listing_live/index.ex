@@ -501,7 +501,7 @@ defmodule PaianjenWeb.ListingLive.Index do
               end
             end
           %>
-          <p class="text-slate-800 text-sm leading-snug mb-3 pr-2 line-clamp-2"><%= representative_title %></p>
+          <p class="text-slate-800 text-sm leading-snug mb-3 pr-2"><%= representative_title %></p>
 
           <div class="flex flex-wrap items-end gap-x-6 gap-y-2 mb-4">
             <div>

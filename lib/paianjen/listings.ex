@@ -239,6 +239,12 @@ defmodule Paianjen.Listings do
         end
       end)
 
+      # Recompute earliest_first_seen from actual DB data to ensure accuracy
+      earliest = Repo.one(from(l in Listing, where: l.group_id == ^group.id, select: min(l.first_seen_at)))
+      if earliest do
+        group |> Ecto.Changeset.change(earliest_first_seen: earliest) |> Repo.update!()
+      end
+
       group
     end)
   end
@@ -295,8 +301,13 @@ defmodule Paianjen.Listings do
 
   defp filter_by_parking(query, opts) do
     if Keyword.get(opts, :with_parking, false) do
-      where(query, [g], g.min_price > 0)
-      # parking_price is on listings, not groups — handled via listing-level filter below
+      # Find groups that have at least one listing with parking_price or has_parking feature
+      listing_ids =
+        Listing
+        |> where([l], l.parking_price > 0)
+        |> select([l], l.group_id)
+
+      where(query, [g], g.id in subquery(listing_ids))
     else
       query
     end
@@ -304,9 +315,13 @@ defmodule Paianjen.Listings do
 
   defp filter_by_commission(query, opts) do
     if Keyword.get(opts, :with_commission, false) do
-      # Commission filter: at least one listing in group has commission > 0
-      # This is handled at listing level via subquery
-      query
+      # Find groups that have at least one listing with agency_commission > 0
+      listing_ids =
+        Listing
+        |> where([l], l.agency_commission > 0)
+        |> select([l], l.group_id)
+
+      where(query, [g], g.id in subquery(listing_ids))
     else
       query
     end
