@@ -484,7 +484,7 @@ defmodule PaianjenWeb.ListingLive.Index do
       <.spider_web days_on_market={@group.days_on_market} />
 
       <div class="flex gap-0">
-        <div class="hidden sm:block w-44 flex-shrink-0 relative">
+        <div class="w-44 flex-shrink-0 relative">
           <%= if @group.image_url do %>
             <.image_with_fallback src={@group.image_url} alt={"Apartament #{@group.district || @group.city}"} class="absolute inset-0 w-full h-full" />
           <% else %>
@@ -513,7 +513,7 @@ defmodule PaianjenWeb.ListingLive.Index do
               end
             end
           %>
-          <p class="text-slate-800 text-sm leading-snug mb-3 pr-2"><%= representative_title %></p>
+          <p class="text-slate-800 text-sm leading-snug mb-2 pr-2"><%= representative_title %></p>
 
           <div class="flex flex-wrap items-end gap-x-6 gap-y-2 mb-4">
             <div>
