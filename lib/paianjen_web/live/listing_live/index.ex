@@ -4,60 +4,117 @@ defmodule PaianjenWeb.ListingLive.Index do
   alias Paianjen.Listings
   alias Paianjen.Listings.GroupPresenter
 
+  @page_size 20
+
   @impl true
   def mount(_params, _session, socket) do
-    groups = load_groups()
-    cities = load_cities(groups)
-    districts = load_districts(groups)
+    page = load_page(1, default_filters())
 
     {:ok,
      assign(socket,
        page_title: "Listări",
-       groups: groups,
-       cities: cities,
-       districts: districts,
+       groups: page.groups,
+       total_count: page.total_count,
+       page: page.page,
+       total_pages: page.total_pages,
+       has_more: page.has_more,
+       cities: page.cities,
+       districts: page.districts,
        filters: default_filters(),
-       sidebar_open: false
+       sidebar_open: false,
+       loading: false
      )}
   end
 
   @impl true
   def handle_event("filter", params, socket) do
-    filters =
-      socket.assigns.filters
-      |> Map.merge(%{
-        search: params["search"] || "",
-        city: params["city"] || "",
-        district: params["district"] || "",
-        min_price: params["min_price"] || "",
-        max_price: params["max_price"] || "",
-        min_sqm: params["min_sqm"] || "",
-        max_sqm: params["max_sqm"] || ""
-      })
+    filters = merge_filters(socket.assigns.filters, params)
+    page = load_page(1, filters)
 
-    {:noreply, assign(socket, filters: filters)}
+    {:noreply,
+     assign(socket,
+       filters: filters,
+       groups: page.groups,
+       total_count: page.total_count,
+       page: 1,
+       total_pages: page.total_pages,
+       has_more: page.has_more,
+       cities: page.cities,
+       districts: page.districts
+     )}
   end
 
   @impl true
   def handle_event("toggle_parking", _params, socket) do
     filters = %{socket.assigns.filters | with_parking: !socket.assigns.filters.with_parking}
-    {:noreply, assign(socket, filters: filters)}
+    page = load_page(1, filters)
+
+    {:noreply,
+     assign(socket,
+       filters: filters,
+       groups: page.groups,
+       total_count: page.total_count,
+       page: 1,
+       total_pages: page.total_pages,
+       has_more: page.has_more
+     )}
   end
 
   @impl true
   def handle_event("toggle_commission", _params, socket) do
     filters = %{socket.assigns.filters | with_commission: !socket.assigns.filters.with_commission}
-    {:noreply, assign(socket, filters: filters)}
+    page = load_page(1, filters)
+
+    {:noreply,
+     assign(socket,
+       filters: filters,
+       groups: page.groups,
+       total_count: page.total_count,
+       page: 1,
+       total_pages: page.total_pages,
+       has_more: page.has_more
+     )}
   end
 
   @impl true
   def handle_event("reset_filters", _params, socket) do
-    {:noreply, assign(socket, filters: default_filters())}
+    filters = default_filters()
+    page = load_page(1, filters)
+
+    {:noreply,
+     assign(socket,
+       filters: filters,
+       groups: page.groups,
+       total_count: page.total_count,
+       page: 1,
+       total_pages: page.total_pages,
+       has_more: page.has_more,
+       cities: page.cities,
+       districts: page.districts
+     )}
   end
 
   @impl true
   def handle_event("toggle_sidebar", _params, socket) do
     {:noreply, assign(socket, sidebar_open: !socket.assigns.sidebar_open)}
+  end
+
+  @impl true
+  def handle_event("load_more", _params, socket) do
+    if socket.assigns.has_more and !socket.assigns.loading do
+      next_page = socket.assigns.page + 1
+      page = load_page(next_page, socket.assigns.filters)
+
+      {:noreply,
+       assign(socket,
+         groups: socket.assigns.groups ++ page.groups,
+         page: next_page,
+         has_more: page.has_more,
+         loading: false
+       )}
+    else
+      {:noreply, socket}
+    end
   end
 
   @impl true
@@ -79,49 +136,94 @@ defmodule PaianjenWeb.ListingLive.Index do
     }
   end
 
-  defp filtered_groups(groups, filters) do
-    groups
-    |> Enum.filter(fn group ->
-      term = String.downcase(filters.search)
+  # ---- Data loading ----
 
-      search_match =
-        term == "" or
-          (group.city && String.downcase(group.city) =~ term) or
-          (group.district && String.downcase(group.district) =~ term) or
-          (group.zone && String.downcase(group.zone) =~ term) or
-          Enum.any?(group.listings, fn l -> l[:title] && String.downcase(l[:title]) =~ term end)
+  defp load_page(page, filters) do
+    opts = [
+      page: page,
+      page_size: @page_size,
+      city: filters.city,
+      district: filters.district,
+      min_price: parse_int(filters.min_price),
+      max_price: parse_int(filters.max_price),
+      min_sqm: parse_float(filters.min_sqm),
+      max_sqm: parse_float(filters.max_sqm),
+      with_parking: filters.with_parking,
+      with_commission: filters.with_commission,
+      search: filters.search
+    ]
 
-      city_match = filters.city == "" || group.city == filters.city
-      district_match = filters.district == "" || group.district == filters.district
+    result = Listings.list_groups_paginated(opts)
 
-      min_price_match =
-        filters.min_price == "" or
-          group.average_price >= String.to_integer(filters.min_price)
+    groups =
+      result.groups
+      |> Enum.map(fn group ->
+        listings = group.listings || Listings.list_listings_for_group(group.id)
+        GroupPresenter.from_group(group, listings)
+      end)
 
-      max_price_match =
-        filters.max_price == "" or
-          group.average_price <= String.to_integer(filters.max_price)
+    {cities, districts} =
+      if page == 1 do
+        all_opts = opts ++ [page: 1, page_size: 1000]
+        case Listings.list_groups_paginated(all_opts) do
+          %{groups: all_g} ->
+            all_g =
+              all_g
+              |> Enum.map(fn g ->
+                listings = g.listings || Listings.list_listings_for_group(g.id)
+                GroupPresenter.from_group(g, listings)
+              end)
+            {
+              all_g |> Enum.map(& &1.city) |> Enum.reject(&is_nil/1) |> Enum.uniq() |> Enum.sort(),
+              all_g |> Enum.map(& &1.district) |> Enum.reject(&is_nil/1) |> Enum.uniq() |> Enum.sort()
+            }
+          _ ->
+            {extract_distinct(groups, & &1.city), extract_distinct(groups, & &1.district)}
+        end
+      else
+        {extract_distinct(groups, & &1.city), extract_distinct(groups, & &1.district)}
+      end
 
-      min_sqm_match =
-        filters.min_sqm == "" or
-          (group.surface_area && group.surface_area >= String.to_float(filters.min_sqm))
-
-      max_sqm_match =
-        filters.max_sqm == "" or
-          (group.surface_area && group.surface_area <= String.to_float(filters.max_sqm))
-
-      parking_match = !filters.with_parking || !is_nil(group.parking_price)
-
-      commission_match =
-        !filters.with_commission or
-          Enum.all?(Enum.reject(group.listings, & &1[:delisted_date]), fn l ->
-            Map.get(l, :agency_commission, 0) > 0
-          end)
-
-      search_match and city_match and district_match and min_price_match and max_price_match and
-        min_sqm_match and max_sqm_match and parking_match and commission_match
-    end)
+    %{
+      groups: groups,
+      total_count: result.total_count,
+      page: result.page,
+      total_pages: result.total_pages,
+      has_more: result.has_more,
+      cities: cities,
+      districts: districts
+    }
   end
+
+  defp extract_distinct(groups, field_fn) do
+    groups
+    |> Enum.map(field_fn)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.uniq()
+    |> Enum.sort()
+  end
+
+  defp merge_filters(current, params) do
+    Map.merge(current, %{
+      search: params["search"] || "",
+      city: params["city"] || "",
+      district: params["district"] || "",
+      min_price: params["min_price"] || "",
+      max_price: params["max_price"] || "",
+      min_sqm: params["min_sqm"] || "",
+      max_sqm: params["max_sqm"] || ""
+    })
+  end
+
+  defp parse_int(""), do: nil
+  defp parse_int(nil), do: nil
+  defp parse_int(s) when is_binary(s), do: String.to_integer(s)
+  defp parse_int(n) when is_integer(n), do: n
+
+  defp parse_float(""), do: nil
+  defp parse_float(nil), do: nil
+  defp parse_float(s) when is_binary(s), do: String.to_float(s)
+  defp parse_float(n) when is_float(n), do: n
 
   defp active_filter_count(filters) do
     [
@@ -155,39 +257,6 @@ defmodule PaianjenWeb.ListingLive.Index do
   defp days_label(0), do: "Astăzi"
   defp days_label(1), do: "1 zi pe piață"
   defp days_label(n), do: "#{n} zile pe piață"
-
-  # ---- Data loading ----
-
-  defp load_groups do
-    case Listings.list_groups() do
-      [] ->
-        []
-
-      groups ->
-        groups
-        |> Enum.map(fn group ->
-          listings = group.listings || Listings.list_listings_for_group(group.id)
-          GroupPresenter.from_group(group, listings)
-        end)
-        |> Enum.sort_by(& &1.days_on_market, :asc)
-    end
-  end
-
-  defp load_cities(groups) do
-    groups
-    |> Enum.map(& &1.city)
-    |> Enum.reject(&is_nil/1)
-    |> Enum.uniq()
-    |> Enum.sort()
-  end
-
-  defp load_districts(groups) do
-    groups
-    |> Enum.map(& &1.district)
-    |> Enum.reject(&is_nil/1)
-    |> Enum.uniq()
-    |> Enum.sort()
-  end
 
   @impl true
   def render(assigns) do
@@ -250,16 +319,16 @@ defmodule PaianjenWeb.ListingLive.Index do
         <main class="flex-1 min-w-0">
           <div class="flex items-center justify-between mb-4">
             <p class="text-sm text-slate-600">
-              <span class="font-medium text-slate-900"><%= length(filtered_groups(@groups, @filters)) %></span>
-              <%= if length(filtered_groups(@groups, @filters)) == 1, do: "grup", else: "grupuri" %>
+              <span class="font-medium text-slate-900"><%= @total_count %></span>
+              <%= if @total_count == 1, do: "grup", else: "grupuri" %>
               <span :if={active_filter_count(@filters) > 0} class="text-slate-400 ml-1">
-                din <%= length(@groups) %> total
+                găsite
               </span>
             </p>
             <p class="text-xs text-slate-400">cele mai noi primele</p>
           </div>
 
-          <div :if={@groups == []} class="bg-white rounded-2xl border border-slate-100 shadow-sm p-12 text-center">
+          <div :if={@total_count == 0} class="bg-white rounded-2xl border border-slate-100 shadow-sm p-12 text-center">
             <svg xmlns="http://www.w3.org/2000/svg" class="w-12 h-12 mx-auto text-slate-300 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
               <path stroke-linecap="round" stroke-linejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
             </svg>
@@ -270,15 +339,31 @@ defmodule PaianjenWeb.ListingLive.Index do
             </p>
           </div>
 
-          <div class="space-y-4">
-            <%= for group <- filtered_groups(@groups, @filters) do %>
+          <div
+            id="groups-list"
+            class="space-y-4"
+            phx-hook="InfiniteScroll"
+            data-page={@page}
+            data-has-more={@has_more}
+          >
+            <%= for group <- @groups do %>
               <.listing_card group={group} />
             <% end %>
+            <div id="scroll-sentinel" class="h-4"></div>
           </div>
 
-          <div :if={length(filtered_groups(@groups, @filters)) == 0 and @groups != []} class="text-center py-20">
-            <p class="text-slate-400 text-sm mb-3">Niciun grup nu corespunde filtrelor selectate.</p>
-            <button phx-click="reset_filters" class="text-indigo-600 text-sm hover:underline">Șterge filtrele</button>
+          <div :if={@has_more} class="flex justify-center py-8">
+            <button
+              phx-click="load_more"
+              phx-disable-with="Se încarcă..."
+              class="px-6 py-2.5 text-sm text-indigo-600 border border-indigo-200 rounded-lg hover:bg-indigo-50 transition-colors"
+            >
+              Încarcă mai multe
+            </button>
+          </div>
+
+          <div :if={@total_count > 0 and !@has_more} class="text-center py-8">
+            <p class="text-slate-400 text-sm">Toate grupurile au fost încărcate.</p>
           </div>
         </main>
       </div>

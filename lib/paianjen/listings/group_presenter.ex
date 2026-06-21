@@ -8,10 +8,10 @@ defmodule Paianjen.Listings.GroupPresenter do
   alias Paianjen.Listings.Listing
 
   defstruct [
-    :id, :city, :district, :zone, :average_price, :surface_area,
-    :floor, :total_floors, :year_built, :image_url, :parking_price,
-    :days_on_market, :active_listings, :total_listings,
-    :listings, :health_pct, :price_per_sqm
+    :id, :city, :district, :zone, :average_price, :price_per_sqm,
+    :surface_area, :floor, :total_floors, :year_built, :image_url,
+    :parking_price, :days_on_market, :active_listings, :total_listings,
+    :listings, :health_pct
   ]
 
   @doc "Convert a ListingGroup with preloaded listings into the flat group format."
@@ -36,21 +36,22 @@ defmodule Paianjen.Listings.GroupPresenter do
     # Convert listings to the flat format
     flat_listings = Enum.map(listings, &from_listing/1)
 
+    surface = (canonical && canonical.surface_area) || group.min_surface
+    price_per_sqm = if surface > 0 and avg_price > 0, do: avg_price / surface, else: 0.0
+
     %__MODULE__{
       id: group.id,
       city: group.group_city || (canonical && canonical.city),
       district: group.group_district || (canonical && canonical.district),
       zone: group.group_zone || (canonical && canonical.zone),
       average_price: avg_price,
-      price_per_sqm: if((canonical && canonical.surface_area) || group.min_surface > 0 and avg_price > 0,
-        do: avg_price / ((canonical && canonical.surface_area) || group.min_surface),
-        else: 0.0),
-      surface_area: (canonical && canonical.surface_area) || group.min_surface,
+      price_per_sqm: price_per_sqm,
+      surface_area: surface,
       floor: canonical && canonical.floor,
       total_floors: canonical && canonical.total_floors,
       year_built: canonical && get_in(canonical.features, ["construction_year"]),
       image_url: group.group_thumbnail || (canonical && canonical.thumbnail),
-      parking_price: nil,
+      parking_price: canonical && canonical.parking_price,
       days_on_market: days_on_market,
       active_listings: active_count,
       total_listings: total_listings,

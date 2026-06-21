@@ -41,6 +41,8 @@ defmodule Paianjen.Listings.Listing do
     field :parking_price, :integer
     field :delisted_date, :utc_datetime
     field :price_with_vat, :integer
+    # search_vector is a PostgreSQL tsvector column managed by DB trigger
+    # Not mapped in Ecto schema — populated via SQL trigger in migration
 
     timestamps(type: :utc_datetime)
   end

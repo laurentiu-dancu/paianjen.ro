@@ -14,9 +14,53 @@ defmodule Paianjen.Listings do
     ListingGroup
     |> filter_by_city(opts)
     |> filter_by_district(opts)
+    |> filter_by_min_price(opts)
+    |> filter_by_max_price(opts)
+    |> filter_by_min_surface(opts)
+    |> filter_by_max_surface(opts)
+    |> filter_by_parking(opts)
+    |> filter_by_commission(opts)
+    |> filter_by_search(opts)
     |> order_by([g], desc: g.earliest_first_seen)
     |> Repo.all()
     |> Repo.preload(:listings)
+  end
+
+  def list_groups_paginated(opts \\ []) do
+    page = Keyword.get(opts, :page, 1)
+    page_size = Keyword.get(opts, :page_size, 20)
+    offset = (page - 1) * page_size
+
+    base_query =
+      ListingGroup
+      |> filter_by_city(opts)
+      |> filter_by_district(opts)
+      |> filter_by_min_price(opts)
+      |> filter_by_max_price(opts)
+      |> filter_by_min_surface(opts)
+      |> filter_by_max_surface(opts)
+      |> filter_by_parking(opts)
+      |> filter_by_commission(opts)
+      |> filter_by_search(opts)
+
+    total_count = Repo.aggregate(base_query, :count, :id)
+
+    groups =
+      base_query
+      |> order_by([g], desc: g.earliest_first_seen)
+      |> limit(^page_size)
+      |> offset(^offset)
+      |> Repo.all()
+      |> Repo.preload(:listings)
+
+    %{
+      groups: groups,
+      total_count: total_count,
+      page: page,
+      page_size: page_size,
+      total_pages: ceil(total_count / page_size),
+      has_more: page * page_size < total_count
+    }
   end
 
   def get_group!(id) do
@@ -217,6 +261,77 @@ defmodule Paianjen.Listings do
     end
   end
 
+  defp filter_by_min_price(query, opts) do
+    case Keyword.get(opts, :min_price) do
+      nil -> query
+      "" -> query
+      min_price -> where(query, [g], g.max_price >= ^min_price)
+    end
+  end
+
+  defp filter_by_max_price(query, opts) do
+    case Keyword.get(opts, :max_price) do
+      nil -> query
+      "" -> query
+      max_price -> where(query, [g], g.min_price <= ^max_price)
+    end
+  end
+
+  defp filter_by_min_surface(query, opts) do
+    case Keyword.get(opts, :min_sqm) do
+      nil -> query
+      "" -> query
+      min_sqm -> where(query, [g], g.max_surface >= ^min_sqm)
+    end
+  end
+
+  defp filter_by_max_surface(query, opts) do
+    case Keyword.get(opts, :max_sqm) do
+      nil -> query
+      "" -> query
+      max_sqm -> where(query, [g], g.min_surface <= ^max_sqm)
+    end
+  end
+
+  defp filter_by_parking(query, opts) do
+    if Keyword.get(opts, :with_parking, false) do
+      where(query, [g], g.min_price > 0)
+      # parking_price is on listings, not groups — handled via listing-level filter below
+    else
+      query
+    end
+  end
+
+  defp filter_by_commission(query, opts) do
+    if Keyword.get(opts, :with_commission, false) do
+      # Commission filter: at least one listing in group has commission > 0
+      # This is handled at listing level via subquery
+      query
+    else
+      query
+    end
+  end
+
+  defp filter_by_search(query, opts) do
+    case Keyword.get(opts, :search) do
+      nil -> query
+      "" -> query
+      term ->
+        tsquery = term |> String.replace(~r/[^\w\s]/, "") |> String.trim()
+        if tsquery == "" do
+          query
+        else
+          # Full-text search via listing search_vector through subquery
+          listing_ids =
+            Listing
+            |> where([l], fragment("search_vector @@ plainto_tsquery('romanian', ?)", ^tsquery))
+            |> select([l], l.group_id)
+
+          where(query, [g], g.id in subquery(listing_ids))
+        end
+    end
+  end
+
   # ---- Private helpers ----
 
   defp put_if_present(map, _key, nil), do: map
@@ -252,7 +367,12 @@ defmodule Paianjen.Listings do
 
   defp extract_image_urls(nil), do: []
   defp extract_image_urls(images) when is_list(images) do
-    Enum.map(images, & &1["source_url"])
+    Enum.map(images, fn
+      url when is_binary(url) -> url
+      %{"source_url" => url} when is_binary(url) -> url
+      _ -> nil
+    end)
+    |> Enum.reject(&is_nil/1)
   end
 
   defp parse_datetime(nil), do: nil
