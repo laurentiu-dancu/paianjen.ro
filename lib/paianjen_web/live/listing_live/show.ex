@@ -7,13 +7,13 @@ defmodule PaianjenWeb.ListingLive.Show do
   @impl true
   def mount(%{"id" => id}, _session, socket) do
     group = load_group(id)
-    all_groups = load_all_groups()
+    similar_groups = load_similar_groups(id)
 
     {:ok,
      assign(socket,
        page_title: (group && (group.zone || group.district)) || "Detalii",
        group: group,
-       all_groups: all_groups
+       similar_groups: similar_groups
      )}
   end
 
@@ -53,34 +53,17 @@ defmodule PaianjenWeb.ListingLive.Show do
     Ecto.NoResultsError -> nil
   end
 
-  defp load_all_groups do
-    case Listings.list_groups() do
-      [] ->
-        []
+  defp load_similar_groups(id) do
+    similar_sgs = Listings.list_similar_groups(id)
 
-      groups ->
-        groups
-        |> Enum.map(fn g ->
-          listings = g.listings || Listings.list_listings_for_group(g.id)
-          GroupPresenter.from_group(g, listings)
-        end)
-    end
-  end
-
-  defp similar_groups_from_all(group, all_groups) do
-    if group do
-      all_groups
-      |> Enum.filter(fn g ->
-        g.id != group.id and
-          g.average_price >= group.average_price * 0.85 and
-          g.average_price <= group.average_price * 1.15 and
-          g.surface_area >= group.surface_area * 0.7 and
-          g.surface_area <= group.surface_area * 1.3
-      end)
-      |> Enum.take(3)
-    else
-      []
-    end
+    similar_sgs
+    |> Enum.map(fn sg ->
+      group = Listings.get_group!(sg.similar_group_id)
+      listings = group.listings || Listings.list_listings_for_group(group.id)
+      GroupPresenter.from_group(group, listings)
+    end)
+  rescue
+    Ecto.NoResultsError -> []
   end
 
   @impl true
@@ -145,17 +128,35 @@ defmodule PaianjenWeb.ListingLive.Show do
           </div>
 
           <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-            <div class="flex items-center gap-3">
-              <div class="w-10 h-10 bg-indigo-50 rounded-lg flex items-center justify-center">
-                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
-                </svg>
+            <%= if @group.min_surface do %>
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-indigo-50 rounded-lg flex items-center justify-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                  </svg>
+                </div>
+                <div>
+                  <p class="text-xs text-gray-500">Suprafață</p>
+                  <p class="text-lg text-gray-900">
+                    <%= if @group.max_surface && @group.min_surface == @group.max_surface, do: "#{@group.min_surface}m²", else: "#{@group.min_surface}–#{@group.max_surface}m²" %>
+                  </p>
+                </div>
               </div>
-              <div>
-                <p class="text-xs text-gray-500">Suprafață</p>
-                <p class="text-lg text-gray-900"><%= @group.surface_area %>m²</p>
+            <% end %>
+
+            <%= if @group.rooms do %>
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-indigo-50 rounded-lg flex items-center justify-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                  </svg>
+                </div>
+                <div>
+                  <p class="text-xs text-gray-500">Camere</p>
+                  <p class="text-lg text-gray-900"><%= @group.rooms %></p>
+                </div>
               </div>
-            </div>
+            <% end %>
 
             <%= if @group.floor && @group.total_floors do %>
               <div class="flex items-center gap-3">
@@ -185,17 +186,21 @@ defmodule PaianjenWeb.ListingLive.Show do
               </div>
             <% end %>
 
-            <div class="flex items-center gap-3">
-              <div class="w-10 h-10 bg-indigo-50 rounded-lg flex items-center justify-center">
-                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
+            <%= if @group.min_price do %>
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-indigo-50 rounded-lg flex items-center justify-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <div>
+                  <p class="text-xs text-gray-500">Preț</p>
+                  <p class="text-lg text-gray-900">
+                    <%= if @group.max_price && @group.min_price == @group.max_price, do: format_price(@group.min_price) <> " €", else: "de la " <> format_price(@group.min_price) <> " €" %>
+                  </p>
+                </div>
               </div>
-              <div>
-                <p class="text-xs text-gray-500">Preț mediu</p>
-                <p class="text-lg text-gray-900"><%= format_price(@group.average_price) %> €</p>
-              </div>
-            </div>
+            <% end %>
           </div>
 
           <%= if @group.image_url do %>
@@ -235,7 +240,9 @@ defmodule PaianjenWeb.ListingLive.Show do
                       <% end %>
                     </div>
                     <p class="text-sm text-gray-700 mb-1 leading-snug"><%= listing.title %></p>
-                    <p class="text-sm text-gray-600 mb-1"><%= format_price(listing.price_per_sqm) %> €/m² • <%= listing.surface_area %>m²</p>
+                    <p class="text-sm text-gray-600 mb-1">
+                      <%= if listing.price_per_sqm, do: format_price(listing.price_per_sqm) <> " €/m² • ", else: "" %><%= listing.surface_area %>m²
+                    </p>
                     <p class="text-sm text-gray-500"><%= listing.source %></p>
                   </div>
 
@@ -248,6 +255,13 @@ defmodule PaianjenWeb.ListingLive.Show do
                 </div>
 
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                  <%= if listing.rooms do %>
+                    <div>
+                      <span class="text-gray-500">Camere: </span>
+                      <span class="text-gray-900"><%= listing.rooms %></span>
+                    </div>
+                  <% end %>
+
                   <%= if listing.floor && listing.total_floors do %>
                     <div>
                       <span class="text-gray-500">Etaj: </span>
@@ -284,10 +298,7 @@ defmodule PaianjenWeb.ListingLive.Show do
         </div>
 
         <%!-- Similar Groups --%>
-        <%
-          similar_groups = similar_groups_from_all(@group, @all_groups)
-        %>
-        <%= if length(similar_groups) > 0 do %>
+        <%= if length(@similar_groups) > 0 do %>
           <div>
             <div class="flex items-center gap-2 mb-4">
               <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -300,7 +311,7 @@ defmodule PaianjenWeb.ListingLive.Show do
             </p>
 
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <%= for sg <- similar_groups do %>
+              <%= for sg <- @similar_groups do %>
                 <.link navigate={~p"/listari/#{sg.id}"} class="bg-white rounded-lg shadow-sm p-4 border border-amber-100 cursor-pointer hover:shadow-md transition-shadow block">
                   <div class="flex items-center gap-2 text-gray-600 text-sm mb-2">
                     <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -309,9 +320,11 @@ defmodule PaianjenWeb.ListingLive.Show do
                     </svg>
                     <span><%= sg.zone || sg.district %></span>
                   </div>
-                  <p class="text-xl text-gray-900 mb-1"><%= format_price(sg.average_price) %> €</p>
+                  <p class="text-xl text-gray-900 mb-1">
+                    <%= if sg.max_price && sg.min_price == sg.max_price, do: format_price(sg.min_price) <> " €", else: "de la " <> format_price(sg.min_price) <> " €" %>
+                  </p>
                   <p class="text-sm text-gray-500 mb-3">
-                    <%= format_price(sg.average_price / sg.surface_area) %> €/m² • <%= sg.surface_area %>m²
+                    <%= if sg.min_surface && sg.min_price, do: format_price(sg.min_price / sg.min_surface) <> " €/m² • ", else: "" %><%= if sg.min_surface, do: "#{sg.min_surface}m²", else: "N/A" %>
                   </p>
                   <div class="flex items-center justify-between text-xs text-gray-600">
                     <span><%= sg.days_on_market %> zile pe piață</span>

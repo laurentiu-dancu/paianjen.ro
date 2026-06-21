@@ -8,10 +8,10 @@ defmodule Paianjen.Listings.GroupPresenter do
   alias Paianjen.Listings.Listing
 
   defstruct [
-    :id, :city, :district, :zone, :average_price, :price_per_sqm,
-    :surface_area, :floor, :total_floors, :year_built, :image_url,
-    :parking_price, :days_on_market, :active_listings, :total_listings,
-    :listings, :health_pct
+    :id, :city, :district, :zone, :min_price, :max_price,
+    :min_surface, :max_surface, :rooms, :floor, :total_floors, :year_built,
+    :image_url, :parking_price, :days_on_market, :active_listings,
+    :total_listings, :listings, :health_pct
   ]
 
   @doc "Convert a ListingGroup with preloaded listings into the flat group format."
@@ -22,9 +22,13 @@ defmodule Paianjen.Listings.GroupPresenter do
 
     canonical = Enum.find(listings, & &1.is_canonical) || List.first(listings)
 
-    # Compute average price from active listings
+    # Compute min/max price and surface from active listings
     prices = Enum.map(active_listings, & &1.price) |> Enum.reject(&is_nil/1)
-    avg_price = if prices != [], do: Enum.sum(prices) / length(prices), else: 0.0
+    surfaces = Enum.map(active_listings, & &1.surface_area) |> Enum.reject(&is_nil/1)
+    min_price = if prices != [], do: Enum.min(prices), else: nil
+    max_price = if prices != [], do: Enum.max(prices), else: nil
+    min_surface = if surfaces != [], do: Enum.min(surfaces), else: nil
+    max_surface = if surfaces != [], do: Enum.max(surfaces), else: nil
 
     # Days on market
     earliest = group.earliest_first_seen || (canonical && canonical.first_seen_at)
@@ -36,17 +40,16 @@ defmodule Paianjen.Listings.GroupPresenter do
     # Convert listings to the flat format
     flat_listings = Enum.map(listings, &from_listing/1)
 
-    surface = (canonical && canonical.surface_area) || group.min_surface
-    price_per_sqm = if surface > 0 and avg_price > 0, do: avg_price / surface, else: 0.0
-
     %__MODULE__{
       id: group.id,
       city: group.group_city || (canonical && canonical.city),
       district: group.group_district || (canonical && canonical.district),
       zone: group.group_zone || (canonical && canonical.zone),
-      average_price: avg_price,
-      price_per_sqm: price_per_sqm,
-      surface_area: surface,
+      min_price: min_price,
+      max_price: max_price,
+      min_surface: min_surface,
+      max_surface: max_surface,
+      rooms: canonical && canonical.rooms,
       floor: canonical && canonical.floor,
       total_floors: canonical && canonical.total_floors,
       year_built: canonical && get_in(canonical.features, ["construction_year"]),
@@ -72,6 +75,7 @@ defmodule Paianjen.Listings.GroupPresenter do
       price_with_vat: l.price_with_vat || l.price || 0,
       price_per_sqm: l.price_per_sqm,
       surface_area: l.surface_area,
+      rooms: l.rooms,
       floor: l.floor,
       total_floors: l.total_floors,
       is_private: l.is_private_seller,

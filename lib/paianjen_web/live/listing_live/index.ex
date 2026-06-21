@@ -506,7 +506,9 @@ defmodule PaianjenWeb.ListingLive.Index do
           <div class="flex flex-wrap items-end gap-x-6 gap-y-2 mb-4">
             <div>
               <div class="flex items-baseline gap-2 flex-wrap">
-                <span class="text-2xl text-slate-900"><%= format_price(@group.average_price) %> €</span>
+                <span class="text-2xl text-slate-900">
+                <%= if @group.min_price && @group.max_price && @group.min_price == @group.max_price, do: format_price(@group.min_price) <> " €", else: "de la " <> format_price(@group.min_price) <> " €" %>
+              </span>
                 <%
                   has_private = Enum.any?(active_listings, & &1[:is_private])
                   has_zero_commission = Enum.any?(active_listings, & &1[:agency_commission] == 0)
@@ -519,7 +521,10 @@ defmodule PaianjenWeb.ListingLive.Index do
                   <span class="px-2 py-0.5 bg-blue-50 text-blue-700 text-xs rounded-full border border-blue-100">comision 0</span>
                 <% end %>
               </div>
-              <p class="text-xs text-slate-400 mt-0.5"><%= format_price(@group.price_per_sqm) %> €/m²</p>
+              <p class="text-xs text-slate-400 mt-0.5">
+                <%= if @group.min_price && @group.min_surface, do: format_price(@group.min_price / @group.min_surface) <> " €/m²", else: "" %>
+                <%= if @group.min_surface, do: " • #{round(@group.min_surface)} m²", else: "" %>
+              </p>
             </div>
 
             <%= if @group.parking_price do %>
@@ -537,7 +542,7 @@ defmodule PaianjenWeb.ListingLive.Index do
               <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
               </svg>
-              <%= @group.surface_area && round(@group.surface_area) %> m²
+              <%= if @group.min_surface, do: (if @group.max_surface && @group.min_surface == @group.max_surface, do: "#{round(@group.min_surface)}", else: "#{round(@group.min_surface)}–#{round(@group.max_surface)}"), else: "N/A" %> m²
             </span>
 
             <%= if @group.floor && @group.total_floors do %>
@@ -546,6 +551,15 @@ defmodule PaianjenWeb.ListingLive.Index do
                   <path stroke-linecap="round" stroke-linejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                 </svg>
                 Et. <%= @group.floor %>/<%= @group.total_floors %>
+              </span>
+            <% end %>
+
+            <%= if @group.rooms do %>
+              <span class="flex items-center gap-1">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path>
+                </svg>
+                <%= @group.rooms %> camere
               </span>
             <% end %>
 
