@@ -36,6 +36,11 @@ defmodule Paianjen.Listings.Listing do
     field :thumbnail, :string
     field :images, {:array, :string}, default: []
     field :features, :map, default: %{}
+    field :agency_commission, :integer, default: 0
+    field :balcony_surface, :float
+    field :parking_price, :integer
+    field :delisted_date, :utc_datetime
+    field :price_with_vat, :integer
 
     timestamps(type: :utc_datetime)
   end
@@ -48,7 +53,9 @@ defmodule Paianjen.Listings.Listing do
       :floor, :total_floors, :seller_type, :is_private_seller, :is_delisted,
       :district, :zone, :city, :street, :latitude, :longitude, :url,
       :first_seen_at, :last_scraped_at, :seller_name, :seller_agency,
-      :seller_phone, :property_type, :thumbnail, :images, :features
+      :seller_phone, :property_type, :thumbnail, :images, :features,
+      :agency_commission, :balcony_surface, :parking_price, :delisted_date,
+      :price_with_vat
     ])
     |> validate_required([:id, :title])
   end

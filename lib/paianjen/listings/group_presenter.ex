@@ -11,7 +11,7 @@ defmodule Paianjen.Listings.GroupPresenter do
     :id, :city, :district, :zone, :average_price, :surface_area,
     :floor, :total_floors, :year_built, :image_url, :parking_price,
     :days_on_market, :active_listings, :total_listings,
-    :listings, :health_pct
+    :listings, :health_pct, :price_per_sqm
   ]
 
   @doc "Convert a ListingGroup with preloaded listings into the flat group format."
@@ -42,6 +42,9 @@ defmodule Paianjen.Listings.GroupPresenter do
       district: group.group_district || (canonical && canonical.district),
       zone: group.group_zone || (canonical && canonical.zone),
       average_price: avg_price,
+      price_per_sqm: if((canonical && canonical.surface_area) || group.min_surface > 0 and avg_price > 0,
+        do: avg_price / ((canonical && canonical.surface_area) || group.min_surface),
+        else: 0.0),
       surface_area: (canonical && canonical.surface_area) || group.min_surface,
       floor: canonical && canonical.floor,
       total_floors: canonical && canonical.total_floors,
@@ -65,6 +68,7 @@ defmodule Paianjen.Listings.GroupPresenter do
       district: l.district,
       zone: l.zone,
       price: l.price || 0,
+      price_with_vat: l.price_with_vat || l.price || 0,
       price_per_sqm: l.price_per_sqm,
       surface_area: l.surface_area,
       floor: l.floor,
@@ -74,9 +78,11 @@ defmodule Paianjen.Listings.GroupPresenter do
       source: l.source_name,
       url: l.url,
       image_url: l.thumbnail,
-      agency_commission: 0,
+      agency_commission: l.agency_commission || 0,
+      balcony_surface: l.balcony_surface,
+      parking_price: l.parking_price,
       published_date: l.first_seen_at,
-      delisted_date: nil
+      delisted_date: l.delisted_date
     }
   end
 

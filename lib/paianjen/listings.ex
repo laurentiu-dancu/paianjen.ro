@@ -166,7 +166,12 @@ defmodule Paianjen.Listings do
           property_type: l_attrs["property_type"],
           thumbnail: l_attrs["thumbnail"],
           images: extract_image_urls(l_attrs["images"]),
-          features: l_attrs["features"] || %{}
+          features: l_attrs["features"] || %{},
+          agency_commission: l_attrs["agency_commission"] && round(l_attrs["agency_commission"]),
+          balcony_surface: l_attrs["balcony_surface"],
+          parking_price: l_attrs["parking_price"],
+          delisted_date: parse_datetime(l_attrs["delisted_date"]),
+          price_with_vat: l_attrs["price_with_vat"] && round(l_attrs["price_with_vat"])
         }
 
         upsert_listing(listing_map)
