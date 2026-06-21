@@ -11,8 +11,7 @@ defmodule Paianjen.Listings do
   # ---- Listing Groups ----
 
   def list_groups(opts \\ []) do
-    ListingGroup
-    |> filter_by_city(opts)
+    ListingGroup    |> filter_by_active(opts)    |> filter_by_city(opts)
     |> filter_by_district(opts)
     |> filter_by_min_price(opts)
     |> filter_by_max_price(opts)
@@ -33,6 +32,7 @@ defmodule Paianjen.Listings do
 
     base_query =
       ListingGroup
+      |> filter_by_active(opts)
       |> filter_by_city(opts)
       |> filter_by_district(opts)
       |> filter_by_min_price(opts)
@@ -66,6 +66,21 @@ defmodule Paianjen.Listings do
   def get_group!(id) do
     Repo.get!(ListingGroup, id)
     |> Repo.preload(:listings)
+  end
+
+  @doc "Returns distinct cities and districts with their group counts, ordered by count desc."
+  def list_cities_and_districts do
+    ListingGroup
+    |> where([g], g.has_active_listings == true)
+    |> where([g], not is_nil(g.group_city) or not is_nil(g.group_district))
+    |> group_by([g], [g.group_city, g.group_district])
+    |> select([g], %{
+      city: g.group_city,
+      district: g.group_district,
+      count: count(g.id)
+    })
+    |> order_by([g], desc: count(g.id))
+    |> Repo.all()
   end
 
   def create_group(attrs \\ %{}) do
@@ -169,9 +184,11 @@ defmodule Paianjen.Listings do
             l["floor"] != nil and l["total_floors"] != nil and l["floor"] == l["total_floors"]
           end)
           has_private = Enum.any?(listings_data, & &1["is_private_seller"])
+          has_active = Enum.any?(listings_data, fn l -> not l["is_delisted"] end)
           a
           |> Map.put(:has_top_floor, has_top)
           |> Map.put(:has_private_seller, has_private)
+          |> Map.put(:has_active_listings, has_active)
         end)
       end)
 
@@ -251,6 +268,14 @@ defmodule Paianjen.Listings do
 
   # ---- Filter helpers for groups ----
 
+  defp filter_by_active(query, opts) do
+    if Keyword.get(opts, :only_active, true) do
+      where(query, [g], g.has_active_listings == true)
+    else
+      query
+    end
+  end
+
   defp filter_by_city(query, opts) do
     case Keyword.get(opts, :city) do
       nil -> query
@@ -315,10 +340,11 @@ defmodule Paianjen.Listings do
 
   defp filter_by_commission(query, opts) do
     if Keyword.get(opts, :with_commission, false) do
-      # Find groups that have at least one listing with agency_commission > 0
+      # Find groups that have at least one listing with zero commission (not private seller)
+      # This matches the "comision 0" badge logic in the listing card
       listing_ids =
         Listing
-        |> where([l], l.agency_commission > 0)
+        |> where([l], l.agency_commission == 0 and l.is_private_seller == false)
         |> select([l], l.group_id)
 
       where(query, [g], g.id in subquery(listing_ids))

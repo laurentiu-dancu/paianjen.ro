@@ -11,7 +11,7 @@ defmodule Paianjen.Listings.GroupPresenter do
     :id, :city, :district, :zone, :min_price, :max_price,
     :min_surface, :max_surface, :rooms, :floor, :total_floors, :year_built,
     :image_url, :parking_price, :days_on_market, :active_listings,
-    :total_listings, :listings, :health_pct
+    :total_listings, :listings, :health_pct, :has_active_listings
   ]
 
   @doc "Convert a ListingGroup with preloaded listings into the flat group format."
@@ -58,6 +58,7 @@ defmodule Paianjen.Listings.GroupPresenter do
       days_on_market: days_on_market,
       active_listings: active_count,
       total_listings: total_listings,
+      has_active_listings: group.has_active_listings,
       listings: flat_listings,
       health_pct: health_pct
     }

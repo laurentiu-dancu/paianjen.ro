@@ -17,6 +17,7 @@ defmodule Paianjen.Listings.ListingGroup do
     field :earliest_first_seen, :utc_datetime
     field :has_top_floor, :boolean, default: false
     field :has_private_seller, :boolean, default: false
+    field :has_active_listings, :boolean, default: false
     field :group_thumbnail, :string
     field :group_district, :string
     field :group_city, :string
@@ -33,7 +34,7 @@ defmodule Paianjen.Listings.ListingGroup do
     |> cast(attrs, [
       :id, :algorithm_version, :listing_count, :min_price, :max_price,
       :min_surface, :max_surface, :min_price_per_sqm, :max_price_per_sqm,
-      :earliest_first_seen, :has_top_floor, :has_private_seller,
+      :earliest_first_seen, :has_top_floor, :has_private_seller, :has_active_listings,
       :group_thumbnail, :group_district, :group_city, :group_zone, :refreshed_at
     ])
     |> validate_required([:id])
