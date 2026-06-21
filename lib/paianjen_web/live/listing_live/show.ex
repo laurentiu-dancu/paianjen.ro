@@ -203,9 +203,31 @@ defmodule PaianjenWeb.ListingLive.Show do
             <% end %>
           </div>
 
-          <%= if @group.image_url do %>
-            <div class="rounded-lg overflow-hidden h-64">
-              <img src={@group.image_url} alt={"Apartament în #{@group.zone || @group.district}"} class="w-full h-full object-cover" />
+          <%
+            images = @group.listings
+            |> Enum.flat_map(fn l -> l.images || [] end)
+            |> Enum.uniq()
+            |> Enum.take(10)
+          %>
+          <%= if length(images) > 0 do %>
+            <div id="image-slider" class="rounded-lg overflow-hidden h-64 mb-6 relative" phx-hook="ImageSlider" data-images={Jason.encode!(images)}>
+              <img src={Enum.at(images, 0)} alt={"Apartament în #{@group.zone || @group.district}"} class="w-full h-full object-cover" id="slider-img" />
+              <div class="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5 z-10" id="slider-dots">
+                <%= for {_, i} <- Enum.with_index(images) do %>
+                  <button
+                    class={"w-2 h-2 rounded-full #{if i == 0, do: "bg-white", else: "bg-white/50"}"}
+                    onclick="window.slideTo(#{i})"
+                  ></button>
+                <% end %>
+              </div>
+              <%= if length(images) > 1 do %>
+                <button onclick="window.slidePrev()" class="absolute left-2 top-1/2 -translate-y-1/2 bg-black/40 hover:bg-black/60 text-white rounded-full w-8 h-8 flex items-center justify-center z-10">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" /></svg>
+                </button>
+                <button onclick="window.slideNext()" class="absolute right-2 top-1/2 -translate-y-1/2 bg-black/40 hover:bg-black/60 text-white rounded-full w-8 h-8 flex items-center justify-center z-10">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" /></svg>
+                </button>
+              <% end %>
             </div>
           <% end %>
         </div>
@@ -298,7 +320,10 @@ defmodule PaianjenWeb.ListingLive.Show do
         </div>
 
         <%!-- Similar Groups --%>
-        <%= if length(@similar_groups) > 0 do %>
+        <%
+          capped_similar = Enum.take(@similar_groups, 6)
+        %>
+        <%= if length(capped_similar) > 0 do %>
           <div>
             <div class="flex items-center gap-2 mb-4">
               <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -311,24 +336,31 @@ defmodule PaianjenWeb.ListingLive.Show do
             </p>
 
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <%= for sg <- @similar_groups do %>
-                <.link navigate={~p"/listari/#{sg.id}"} class="bg-white rounded-lg shadow-sm p-4 border border-amber-100 cursor-pointer hover:shadow-md transition-shadow block">
-                  <div class="flex items-center gap-2 text-gray-600 text-sm mb-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                    <span><%= sg.zone || sg.district %></span>
-                  </div>
-                  <p class="text-xl text-gray-900 mb-1">
-                    <%= if sg.max_price && sg.min_price == sg.max_price, do: format_price(sg.min_price) <> " €", else: "de la " <> format_price(sg.min_price) <> " €" %>
-                  </p>
-                  <p class="text-sm text-gray-500 mb-3">
-                    <%= if sg.min_surface && sg.min_price, do: format_price(sg.min_price / sg.min_surface) <> " €/m² • ", else: "" %><%= if sg.min_surface, do: "#{sg.min_surface}m²", else: "N/A" %>
-                  </p>
-                  <div class="flex items-center justify-between text-xs text-gray-600">
-                    <span><%= sg.days_on_market %> zile pe piață</span>
-                    <span><%= sg.active_listings %>/<%= sg.total_listings %> active</span>
+              <%= for sg <- capped_similar do %>
+                <.link navigate={~p"/listari/#{sg.id}"} class="bg-white rounded-lg shadow-sm border border-amber-100 cursor-pointer hover:shadow-md transition-shadow overflow-hidden block">
+                  <%= if sg.image_url do %>
+                    <div class="h-32 w-full">
+                      <.image_with_fallback src={sg.image_url} alt={"Apartament în #{sg.zone || sg.district}"} class="w-full h-full" />
+                    </div>
+                  <% end %>
+                  <div class="p-4">
+                    <div class="flex items-center gap-2 text-gray-600 text-sm mb-2">
+                      <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                      <span><%= sg.zone || sg.district %></span>
+                    </div>
+                    <p class="text-xl text-gray-900 mb-1">
+                      <%= if sg.max_price && sg.min_price == sg.max_price, do: format_price(sg.min_price) <> " €", else: "de la " <> format_price(sg.min_price) <> " €" %>
+                    </p>
+                    <p class="text-sm text-gray-500 mb-3">
+                      <%= if sg.min_surface && sg.min_price, do: format_price(sg.min_price / sg.min_surface) <> " €/m² • ", else: "" %><%= if sg.min_surface, do: "#{sg.min_surface}m²", else: "N/A" %>
+                    </p>
+                    <div class="flex items-center justify-between text-xs text-gray-600">
+                      <span><%= sg.days_on_market %> zile pe piață</span>
+                      <span><%= sg.active_listings %>/<%= sg.total_listings %> active</span>
+                    </div>
                   </div>
                 </.link>
               <% end %>

@@ -476,8 +476,8 @@ defmodule PaianjenWeb.ListingLive.Index do
       <.spider_web days_on_market={@group.days_on_market} />
 
       <div class="flex gap-0">
-        <div :if={@group.image_url} class="hidden sm:block w-44 flex-shrink-0 relative overflow-hidden">
-          <img src={@group.image_url} alt={"Apartament #{@group.district || @group.city}"} class="absolute inset-0 w-full h-full object-cover" />
+        <div :if={@group.image_url} class="hidden sm:block w-44 flex-shrink-0">
+          <.image_with_fallback src={@group.image_url} alt={"Apartament #{@group.district || @group.city}"} class="absolute inset-0 w-full h-full" />
         </div>
 
         <div class="flex-1 p-5 min-w-0">

@@ -3,14 +3,11 @@ import { LiveSocket } from "phoenix_live_view";
 import topbar from "../vendor/topbar";
 
 let csrfToken = document.querySelector("meta[name='csrf-token']")?.getAttribute("content");
-let liveSocket = new LiveSocket("/live", Socket, {
-  longPollFallbackMs: 25000,
-  params: { _csrf_token: csrfToken },
-  hooks: Hooks,
-});
+
+// All hooks must be defined BEFORE LiveSocket is created
+let Hooks = {};
 
 // Infinite scroll hook for groups list
-let Hooks = {};
 Hooks.InfiniteScroll = {
   mounted() {
     this.observer = new IntersectionObserver(
@@ -43,6 +40,45 @@ Hooks.InfiniteScroll = {
     }
   },
 };
+
+Hooks.ImageSlider = {
+  mounted() {
+    const images = JSON.parse(this.el.dataset.images);
+    if (images.length === 0) return;
+
+    this.currentIndex = 0;
+    this.imgEl = document.getElementById("slider-img");
+
+    window.slideTo = (index) => {
+      this.currentIndex = index;
+      this.imgEl.src = images[index];
+      this.updateDots();
+    };
+
+    window.slideNext = () => {
+      this.currentIndex = (this.currentIndex + 1) % images.length;
+      this.imgEl.src = images[this.currentIndex];
+      this.updateDots();
+    };
+
+    window.slidePrev = () => {
+      this.currentIndex = (this.currentIndex - 1 + images.length) % images.length;
+      this.imgEl.src = images[this.currentIndex];
+      this.updateDots();
+    };
+
+    this.updateDots();
+  },
+  updated() {
+    this.imgEl = document.getElementById("slider-img");
+  },
+};
+
+let liveSocket = new LiveSocket("/live", Socket, {
+  longPollFallbackMs: 25000,
+  params: { _csrf_token: csrfToken },
+  hooks: Hooks,
+});
 
 liveSocket.connect();
 window.liveSocket = liveSocket;

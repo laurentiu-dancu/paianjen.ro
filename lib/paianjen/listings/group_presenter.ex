@@ -83,6 +83,7 @@ defmodule Paianjen.Listings.GroupPresenter do
       source: l.source_name,
       url: l.url,
       image_url: l.thumbnail,
+      images: l.images || [],
       agency_commission: l.agency_commission || 0,
       balcony_surface: l.balcony_surface,
       parking_price: l.parking_price,
