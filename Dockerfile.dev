@@ -1,0 +1,47 @@
+# Dev-mode Dockerfile: mounts source code, runs mix phx.server
+# No rebuilds needed on code changes — just edit & refresh browser.
+FROM hexpm/elixir:1.17.2-erlang-27.0.1-debian-bullseye-20240701-slim
+
+RUN apt-get update -y && apt-get install -y \
+    build-essential \
+    git \
+    curl \
+    inotify-tools \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
+    apt-get install -y nodejs && \
+    npm install -g npm@latest
+
+RUN mix local.hex --force && \
+    mix local.rebar --force
+
+WORKDIR /app
+
+# Copy dependency files (cached layer — only invalidated when deps change)
+COPY mix.exs mix.lock ./
+RUN mix deps.get
+
+COPY config ./config
+RUN mix deps.compile
+
+# Copy assets (CSS, JS, vendor files)
+COPY assets ./assets
+RUN npm install --prefix assets
+
+# Copy priv (migrations, gettext, etc.)
+COPY priv ./priv
+
+# Copy rel (release helpers)
+COPY rel ./rel
+
+# Compile the application
+COPY lib ./lib
+RUN MIX_ENV=dev mix compile
+
+# Build assets (esbuild + tailwind via mix)
+RUN MIX_ENV=dev mix assets.deploy
+
+EXPOSE 4000
+
+CMD ["mix", "phx.server"]

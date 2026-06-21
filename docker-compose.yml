@@ -1,4 +1,4 @@
-name: paianjen
+name: paianjen-dev
 
 services:
   db:
@@ -9,9 +9,8 @@ services:
       POSTGRES_DB: paianjen_dev
     ports:
       - "5434:5432"
-      - "4000:4000"
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - pgdata_dev:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U paianjen"]
       interval: 5s
@@ -21,16 +20,30 @@ services:
   app:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
     environment:
-      DATABASE_URL: ecto://paianjen:paianjen_dev_secret@localhost:5432/paianjen_dev
+      DATABASE_URL: ecto://paianjen:paianjen_dev_secret@db:5432/paianjen_dev
       SECRET_KEY_BASE: dev_secret_key_base_that_is_at_least_64_bytes_long_for_phoenix_zzz
       PHX_HOST: localhost
       PORT: 4000
-    network_mode: "service:db"
+    ports:
+      - "4000:4000"
+    volumes:
+      # Mount source code — changes on host are reflected instantly
+      - ./lib:/app/lib:delegated
+      - ./priv:/app/priv:delegated
+      - ./config:/app/config:delegated
+      - ./assets:/app/assets:delegated
+      # Named volumes for build artifacts so they persist across restarts
+      - mix_build:/app/_build
+      - mix_deps:/app/deps
+      - node_modules:/app/assets/node_modules
     depends_on:
       db:
         condition: service_healthy
 
 volumes:
-  pgdata:
+  pgdata_dev:
+  mix_build:
+  mix_deps:
+  node_modules:

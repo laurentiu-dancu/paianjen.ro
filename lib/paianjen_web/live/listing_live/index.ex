@@ -1,16 +1,21 @@
 defmodule PaianjenWeb.ListingLive.Index do
   use PaianjenWeb, :live_view
 
-  alias Paianjen.Listings.MockData
+  alias Paianjen.Listings
+  alias Paianjen.Listings.GroupPresenter
 
   @impl true
   def mount(_params, _session, socket) do
+    groups = load_groups()
+    cities = load_cities(groups)
+    districts = load_districts(groups)
+
     {:ok,
      assign(socket,
        page_title: "Listări",
-       groups: MockData.all_groups(),
-       cities: MockData.all_cities(),
-       districts: MockData.all_districts(),
+       groups: groups,
+       cities: cities,
+       districts: districts,
        filters: default_filters(),
        sidebar_open: false
      )}
@@ -81,10 +86,10 @@ defmodule PaianjenWeb.ListingLive.Index do
 
       search_match =
         term == "" or
-          String.downcase(group.city) =~ term or
+          (group.city && String.downcase(group.city) =~ term) or
           (group.district && String.downcase(group.district) =~ term) or
           (group.zone && String.downcase(group.zone) =~ term) or
-          Enum.any?(group.listings, fn l -> String.downcase(l.title) =~ term end)
+          Enum.any?(group.listings, fn l -> l[:title] && String.downcase(l[:title]) =~ term end)
 
       city_match = filters.city == "" || group.city == filters.city
       district_match = filters.district == "" || group.district == filters.district
@@ -99,18 +104,18 @@ defmodule PaianjenWeb.ListingLive.Index do
 
       min_sqm_match =
         filters.min_sqm == "" or
-          group.surface_area >= String.to_float(filters.min_sqm)
+          (group.surface_area && group.surface_area >= String.to_float(filters.min_sqm))
 
       max_sqm_match =
         filters.max_sqm == "" or
-          group.surface_area <= String.to_float(filters.max_sqm)
+          (group.surface_area && group.surface_area <= String.to_float(filters.max_sqm))
 
       parking_match = !filters.with_parking || !is_nil(group.parking_price)
 
       commission_match =
         !filters.with_commission or
-          Enum.all?(Enum.reject(group.listings, & &1.delisted_date), fn l ->
-            l.agency_commission > 0
+          Enum.all?(Enum.reject(group.listings, & &1[:delisted_date]), fn l ->
+            Map.get(l, :agency_commission, 0) > 0
           end)
 
       search_match and city_match and district_match and min_price_match and max_price_match and
@@ -150,6 +155,39 @@ defmodule PaianjenWeb.ListingLive.Index do
   defp days_label(0), do: "Astăzi"
   defp days_label(1), do: "1 zi pe piață"
   defp days_label(n), do: "#{n} zile pe piață"
+
+  # ---- Data loading ----
+
+  defp load_groups do
+    case Listings.list_groups() do
+      [] ->
+        []
+
+      groups ->
+        groups
+        |> Enum.map(fn group ->
+          listings = group.listings || Listings.list_listings_for_group(group.id)
+          GroupPresenter.from_group(group, listings)
+        end)
+        |> Enum.sort_by(& &1.days_on_market, :asc)
+    end
+  end
+
+  defp load_cities(groups) do
+    groups
+    |> Enum.map(& &1.city)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.uniq()
+    |> Enum.sort()
+  end
+
+  defp load_districts(groups) do
+    groups
+    |> Enum.map(& &1.district)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.uniq()
+    |> Enum.sort()
+  end
 
   @impl true
   def render(assigns) do
@@ -199,8 +237,8 @@ defmodule PaianjenWeb.ListingLive.Index do
           <div class="w-72 bg-white shadow-xl p-5 overflow-y-auto">
             <div class="flex items-center justify-between mb-5">
               <h2 class="text-sm text-slate-800">Filtre</h2>
-              <button phx-click="toggle_sidebar">
-                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <button phx-click="toggle_sidebar" class="text-slate-400 hover:text-slate-600">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
@@ -211,25 +249,26 @@ defmodule PaianjenWeb.ListingLive.Index do
 
         <main class="flex-1 min-w-0">
           <div class="flex items-center justify-between mb-4">
-            <p class="text-sm text-slate-600">
-              <span class="font-medium text-slate-900"><%= length(filtered_groups(@groups, @filters)) %></span>
-              <%= if length(filtered_groups(@groups, @filters)) == 1, do: "proprietate", else: "proprietăți" %>
-              <span :if={active_filter_count(@filters) > 0} class="text-slate-400 ml-1">
-                din <%= length(@groups) %> total
-              </span>
+            <p class="text-sm text-slate-500">
+              <%= length(filtered_groups(@groups, @filters)) %> grupuri găsite
             </p>
-            <p class="text-xs text-slate-400">cele mai noi primele</p>
           </div>
 
-          <div class="space-y-4">
+          <div :if={@groups == []} class="bg-white rounded-2xl border border-slate-100 shadow-sm p-12 text-center">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-12 h-12 mx-auto text-slate-300 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+            </svg>
+            <h3 class="text-lg text-slate-700 mb-2">Nu există date importate</h3>
+            <p class="text-sm text-slate-500 max-w-md mx-auto">
+              Importați date din little-spider rulând:
+              <code class="block mt-2 bg-slate-100 rounded px-3 py-2 text-xs">mix run priv/repo/import_from_export.exs</code>
+            </p>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             <%= for group <- filtered_groups(@groups, @filters) do %>
-              <.listing_card group={group} />
+              <.group_card group={group} />
             <% end %>
-          </div>
-
-          <div :if={length(filtered_groups(@groups, @filters)) == 0} class="text-center py-20">
-            <p class="text-slate-400 text-sm mb-3">Nicio proprietate nu corespunde filtrelor selectate.</p>
-            <button phx-click="reset_filters" class="text-indigo-600 text-sm hover:underline">Șterge filtrele</button>
           </div>
         </main>
       </div>
@@ -239,249 +278,117 @@ defmodule PaianjenWeb.ListingLive.Index do
 
   defp filter_panel(assigns) do
     ~H"""
-    <form phx-change="filter" class="space-y-6">
+    <form phx-change="filter" class="space-y-4">
       <div>
-        <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1.5">Caută</label>
-        <div class="relative">
-          <svg xmlns="http://www.w3.org/2000/svg" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-          </svg>
-          <input
-            type="text"
-            name="search"
-            value={@filters.search}
-            placeholder="Localitate, cartier, titlu..."
-            class="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
-          />
-        </div>
+        <label class="block text-xs text-slate-500 mb-1">Căutare</label>
+        <input
+          type="text"
+          name="search"
+          value={@filters.search}
+          placeholder="Cuvânt cheie..."
+          class="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+        />
       </div>
 
       <div>
-        <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1.5">Localitate</label>
-        <select name="city" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white">
+        <label class="block text-xs text-slate-500 mb-1">Oraș</label>
+        <select name="city" class="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
           <option value="">Toate</option>
-          <option :for={c <- @cities} value={c} selected={@filters.city == c}><%= c %></option>
+          <%= for city <- @cities do %>
+            <option value={city} selected={@filters.city == city}><%= city %></option>
+          <% end %>
         </select>
       </div>
 
       <div>
-        <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1.5">Cartier</label>
-        <select name="district" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white">
+        <label class="block text-xs text-slate-500 mb-1">Cartier</label>
+        <select name="district" class="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
           <option value="">Toate</option>
-          <option :for={d <- @districts} value={d} selected={@filters.district == d}><%= d %></option>
+          <%= for district <- @districts do %>
+            <option value={district} selected={@filters.district == district}><%= district %></option>
+          <% end %>
         </select>
       </div>
 
-      <div>
-        <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1.5">Preț (€)</label>
-        <div class="flex gap-2">
-          <input type="number" name="min_price" value={@filters.min_price} placeholder="Min" class="w-1/2 px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white" />
-          <input type="number" name="max_price" value={@filters.max_price} placeholder="Max" class="w-1/2 px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white" />
+      <div class="grid grid-cols-2 gap-2">
+        <div>
+          <label class="block text-xs text-slate-500 mb-1">Preț min</label>
+          <input type="number" name="min_price" value={@filters.min_price} placeholder="€" class="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+        </div>
+        <div>
+          <label class="block text-xs text-slate-500 mb-1">Preț max</label>
+          <input type="number" name="max_price" value={@filters.max_price} placeholder="€" class="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
         </div>
       </div>
 
-      <div>
-        <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1.5">Suprafață (m²)</label>
-        <div class="flex gap-2">
-          <input type="number" name="min_sqm" value={@filters.min_sqm} placeholder="Min" class="w-1/2 px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white" />
-          <input type="number" name="max_sqm" value={@filters.max_sqm} placeholder="Max" class="w-1/2 px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white" />
+      <div class="grid grid-cols-2 gap-2">
+        <div>
+          <label class="block text-xs text-slate-500 mb-1">mp min</label>
+          <input type="number" name="min_sqm" value={@filters.min_sqm} placeholder="m²" class="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+        </div>
+        <div>
+          <label class="block text-xs text-slate-500 mb-1">mp max</label>
+          <input type="number" name="max_sqm" value={@filters.max_sqm} placeholder="m²" class="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
         </div>
       </div>
 
-      <div class="space-y-3">
-        <label class="flex items-center gap-3 cursor-pointer group">
-          <button type="button" phx-click="toggle_parking" class={"w-10 h-5 rounded-full transition-colors flex-shrink-0 relative #{if @filters.with_parking, do: "bg-indigo-500", else: "bg-slate-200"}"}>
-            <span class={"absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform #{if @filters.with_parking, do: "translate-x-5", else: "translate-x-0"}"} />
-          </button>
-          <div class="flex items-center gap-1.5 text-sm text-slate-700 group-hover:text-slate-900">
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M8 7h8m-8 4h8m-4 4v4m-4-4h8a2 2 0 002-2V5a2 2 0 00-2-2H6a2 2 0 00-2 2v8a2 2 0 002 2z" />
-            </svg>
-            Cu parcare
-          </div>
+      <div class="space-y-2">
+        <label class="flex items-center gap-2 cursor-pointer">
+          <input type="checkbox" name="with_parking" checked={@filters.with_parking} phx-click="toggle_parking" class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
+          <span class="text-sm text-slate-700">Cu parcare</span>
         </label>
-
-        <label class="flex items-center gap-3 cursor-pointer group">
-          <button type="button" phx-click="toggle_commission" class={"w-10 h-5 rounded-full transition-colors flex-shrink-0 relative #{if @filters.with_commission, do: "bg-indigo-500", else: "bg-slate-200"}"}>
-            <span class={"absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform #{if @filters.with_commission, do: "translate-x-5", else: "translate-x-0"}"} />
-          </button>
-          <div class="flex items-center gap-1.5 text-sm text-slate-700 group-hover:text-slate-900">
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            Doar cu comision
-          </div>
+        <label class="flex items-center gap-2 cursor-pointer">
+          <input type="checkbox" name="with_commission" checked={@filters.with_commission} phx-click="toggle_commission" class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
+          <span class="text-sm text-slate-700">Cu comision</span>
         </label>
       </div>
 
-      <button
-        :if={active_filter_count(@filters) > 0}
-        type="button"
-        phx-click="reset_filters"
-        class="w-full flex items-center justify-center gap-1.5 py-2 text-sm text-slate-500 hover:text-red-500 border border-slate-200 rounded-lg hover:border-red-200 transition-colors"
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-        </svg>
-        Șterge filtrele (<%= active_filter_count(@filters) %>)
+      <button type="button" phx-click="reset_filters" class="w-full px-3 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50">
+        Resetează filtre
       </button>
     </form>
     """
   end
 
-  defp listing_card(assigns) do
+  defp group_card(assigns) do
     ~H"""
-    <.link
-      navigate={~p"/listari/#{@group.id}"}
-      class="bg-white border border-slate-100 rounded-2xl shadow-sm hover:shadow-md hover:border-indigo-100 transition-all cursor-pointer overflow-hidden relative block"
-    >
-      <.spider_web days_on_market={@group.days_on_market} />
-
-      <div class="flex gap-0">
-        <div :if={@group.image_url} class="hidden sm:block w-44 flex-shrink-0 relative overflow-hidden">
-          <img src={@group.image_url} alt={"Apartament #{@group.district || @group.city}"} class="absolute inset-0 w-full h-full object-cover" />
-        </div>
-
-        <div class="flex-1 p-5 min-w-0">
-          <div class="flex items-center gap-1.5 text-slate-400 text-xs mb-1.5">
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-              <path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+    <.link navigate={~p"/listari/#{@group.id}"} class="block bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow overflow-hidden">
+      <div class="h-40 bg-slate-200 relative">
+        <%= if @group.image_url do %>
+          <img src={@group.image_url} alt="" class="w-full h-full object-cover" />
+        <% else %>
+          <div class="w-full h-full flex items-center justify-center text-slate-400">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
             </svg>
-            <span>
-              <%= @group.city %><%= if @group.district, do: " · #{@group.district}" %><%= if @group.zone, do: " · #{@group.zone}" %>
-            </span>
           </div>
-
-          <%
-            active_listings = Enum.reject(@group.listings, & &1.delisted_date)
-            representative_title = case active_listings do
-              [first | _] -> first.title
-              [] -> case @group.listings do
-                [first | _] -> first.title
-                [] -> ""
-              end
-            end
-          %>
-          <p class="text-slate-800 text-sm leading-snug mb-3 pr-2 line-clamp-2"><%= representative_title %></p>
-
-          <div class="flex flex-wrap items-end gap-x-6 gap-y-2 mb-4">
-            <div>
-              <div class="flex items-baseline gap-2 flex-wrap">
-                <span class="text-2xl text-slate-900"><%= format_price(@group.average_price) %> €</span>
-                <%
-                  has_private = Enum.any?(active_listings, & &1.is_private)
-                  has_zero_commission = Enum.any?(active_listings, & &1.agency_commission == 0)
-                  show_commission = !has_zero_commission && !has_private && length(active_listings) > 0
-                %>
-                <%= if has_private && !show_commission do %>
-                  <span class="px-2 py-0.5 bg-emerald-50 text-emerald-700 text-xs rounded-full border border-emerald-100">proprietar</span>
-                <% end %>
-                <%= if has_zero_commission && !show_commission do %>
-                  <span class="px-2 py-0.5 bg-blue-50 text-blue-700 text-xs rounded-full border border-blue-100">comision 0</span>
-                <% end %>
-              </div>
-              <p class="text-xs text-slate-400 mt-0.5"><%= format_price(@group.average_price / @group.surface_area) %> €/m²</p>
-            </div>
-
-            <%= if @group.parking_price do %>
-              <div class="flex items-center gap-1.5">
-                <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M8 7h8m-8 4h8m-4 4v4m-4-4h8a2 2 0 002-2V5a2 2 0 00-2-2H6a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                </svg>
-                <span class="text-sm text-slate-700">Parcare <span class="text-slate-900"><%= format_price(@group.parking_price) %> €</span></span>
-              </div>
-            <% end %>
+        <% end %>
+        <div class="absolute top-2 right-2 bg-white/90 backdrop-blur-sm rounded-lg px-2 py-1 text-xs text-slate-600">
+          <%= @group.active_listings %>/<%= @group.total_listings %> active
+        </div>
+      </div>
+      <div class="p-4">
+        <div class="flex items-center gap-1.5 text-xs text-slate-500 mb-2">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+          <%= @group.city %><%= if @group.district, do: " • #{@group.district}" %>
+        </div>
+        <h3 class="text-sm text-slate-800 line-clamp-2 mb-3"><%= @group.zone || @group.district || "Apartament" %></h3>
+        <div class="flex items-center justify-between">
+          <div>
+            <span class="text-lg text-slate-900">€<%= format_price(@group.average_price) %></span>
+            <span class="text-xs text-slate-400 ml-1">medie</span>
           </div>
-
-          <div class="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-slate-500 mb-4">
-            <span class="flex items-center gap-1">
-              <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
-              </svg>
-              <%= @group.surface_area %> m²
-            </span>
-
-            <%= if @group.floor && @group.total_floors do %>
-              <span class="flex items-center gap-1">
-                <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                </svg>
-                Et. <%= @group.floor %>/<%= @group.total_floors %>
-              </span>
-            <% end %>
-
-            <%= if @group.year_built do %>
-              <span>An <%= @group.year_built %></span>
-            <% end %>
-
-            <% show_comm = !Enum.any?(active_listings, &(&1.agency_commission == 0)) && !Enum.any?(active_listings, & &1.is_private) && length(active_listings) > 0 %>
-            <%= if show_comm do %>
-              <% avg_comm = Enum.sum(Enum.map(active_listings, & &1.agency_commission)) / length(active_listings) %>
-              <span class="flex items-center gap-1 text-slate-400">
-                <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                Comision mediu <%= format_price(avg_comm) %> €
-              </span>
-            <% end %>
-          </div>
-
-          <div class="flex items-center justify-between pt-3 border-t border-slate-50">
-            <div class="flex items-center gap-1.5 text-xs text-slate-500">
-              <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <%= days_label(@group.days_on_market) %>
-            </div>
-
-            <%
-              health_ratio = @group.active_listings / @group.total_listings
-              health_color = cond do
-                health_ratio >= 0.75 -> "text-emerald-600 bg-emerald-50 border-emerald-100"
-                health_ratio >= 0.5 -> "text-amber-600 bg-amber-50 border-amber-100"
-                true -> "text-orange-600 bg-orange-50 border-orange-100"
-              end
-            %>
-            <div class={"flex items-center gap-1 px-2.5 py-1 rounded-full border text-xs #{health_color}"}>
-              <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <%= @group.active_listings %>/<%= @group.total_listings %> active
-            </div>
-          </div>
+          <span class="text-xs text-slate-500"><%= days_label(@group.days_on_market) %></span>
+        </div>
+        <div class="flex items-center gap-3 mt-2 text-xs text-slate-500">
+          <span><%= @group.surface_area && round(@group.surface_area) %> m²</span>
+          <span><%= @group.floor && "#{@group.floor}/#{@group.total_floors}" %></span>
         </div>
       </div>
     </.link>
-    """
-  end
-
-  defp spider_web(assigns) do
-    ~H"""
-    <%= if @days_on_market >= 30 do %>
-      <% opacity = min(0.15 + ((@days_on_market - 30) / 60) * 0.3, 0.45) %>
-      <svg class="absolute top-0 right-0 w-24 h-24 pointer-events-none" viewBox="0 0 100 100" style={"opacity: #{opacity}"}>
-        <g stroke="#4F46E5" stroke-width="0.5" fill="none">
-          <line x1="90" y1="10" x2="50" y2="50" />
-          <line x1="95" y1="25" x2="50" y2="50" />
-          <line x1="98" y1="40" x2="50" y2="50" />
-          <line x1="98" y1="55" x2="50" y2="50" />
-          <line x1="95" y1="70" x2="50" y2="50" />
-          <line x1="75" y1="5" x2="50" y2="50" />
-          <circle cx="50" cy="50" r="8" />
-          <circle cx="50" cy="50" r="18" />
-          <circle cx="50" cy="50" r="28" />
-          <circle cx="50" cy="50" r="38" />
-          <circle cx="50" cy="50" r="48" />
-        </g>
-        <%= if @days_on_market > 60 do %>
-          <g fill="#4F46E5" opacity="0.6">
-            <ellipse cx="92" cy="15" rx="3" ry="2.5" />
-            <circle cx="92" cy="15" r="1.5" />
-          </g>
-        <% end %>
-      </svg>
-    <% end %>
     """
   end
 end
