@@ -110,6 +110,58 @@ defmodule Paianjen.Listings do
     end
   end
 
+  @doc """
+  Loads up to `limit` groups that are newer than (come before) the cursor group.
+  Returns {groups, has_more} where groups are ordered newest-first.
+  Returns {[], false} if the cursor group is not found or no newer groups exist.
+  """
+  def list_groups_before_cursor(cursor_id, opts \\ []) do
+    limit = Keyword.get(opts, :page_size, 20)
+
+    case Repo.get(ListingGroup, cursor_id) do
+      nil ->
+        {[], false}
+
+      group ->
+        base_query =
+          ListingGroup
+          |> filter_by_active(opts)
+          |> filter_by_city(opts)
+          |> filter_by_district(opts)
+          |> filter_by_min_price(opts)
+          |> filter_by_max_price(opts)
+          |> filter_by_min_surface(opts)
+          |> filter_by_max_surface(opts)
+          |> filter_by_parking(opts)
+          |> filter_by_commission(opts)
+          |> filter_by_search(opts)
+
+        # Groups that come BEFORE the cursor in the sort order (newer items)
+        # Sort is: earliest_first_seen DESC, id ASC
+        # "Before" = higher earliest_first_seen, or same date with higher id
+        newer_query =
+          base_query
+          |> where(
+            [g],
+            g.earliest_first_seen > ^group.earliest_first_seen or
+              (g.earliest_first_seen == ^group.earliest_first_seen and g.id > ^group.id)
+          )
+          |> order_by([g], desc: g.earliest_first_seen, asc: g.id)
+          |> limit(^limit + 1)
+
+        all_groups = Repo.all(newer_query) |> Repo.preload(:listings)
+
+        {groups, has_more} =
+          if length(all_groups) > limit do
+            {Enum.take(all_groups, limit), true}
+          else
+            {all_groups, false}
+          end
+
+        {groups, has_more}
+    end
+  end
+
   @doc "Returns distinct cities and districts with their group counts, ordered by count desc."
   def list_cities_and_districts do
     ListingGroup

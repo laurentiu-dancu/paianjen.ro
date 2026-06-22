@@ -12,6 +12,8 @@ defmodule PaianjenWeb.ListingLive.Index do
     {offset, page_number} = resolve_offset(params, filters)
     page = load_page(page_number, offset, filters)
 
+    has_older = filters.cursor != ""
+
     {:ok,
      assign(socket,
        page_title: "Listări",
@@ -20,6 +22,7 @@ defmodule PaianjenWeb.ListingLive.Index do
        page: page.page,
        total_pages: page.total_pages,
        has_more: page.has_more,
+       has_older: has_older,
        cities: page.cities,
        districts: page.districts,
        filters: filters,
@@ -113,6 +116,54 @@ defmodule PaianjenWeb.ListingLive.Index do
          page: next_page,
          has_more: page.has_more,
          loading: false
+       )}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  @impl true
+  def handle_event("load_previous", _params, socket) do
+    if socket.assigns.has_older and !socket.assigns.loading do
+      cursor_id = socket.assigns.filters.cursor
+
+      opts = [
+        page_size: @page_size,
+        city: socket.assigns.filters.city,
+        district: socket.assigns.filters.district,
+        min_price: parse_int(socket.assigns.filters.min_price),
+        max_price: parse_int(socket.assigns.filters.max_price),
+        min_sqm: parse_float(socket.assigns.filters.min_sqm),
+        max_sqm: parse_float(socket.assigns.filters.max_sqm),
+        with_parking: socket.assigns.filters.with_parking,
+        with_commission: socket.assigns.filters.with_commission,
+        search: socket.assigns.filters.search
+      ]
+
+      {older_groups, has_more} = Listings.list_groups_before_cursor(cursor_id, opts)
+
+      presented =
+        older_groups
+        |> Enum.map(fn group ->
+          listings = group.listings || Listings.list_listings_for_group(group.id)
+          GroupPresenter.from_group(group, listings)
+        end)
+
+      # New cursor is the last (oldest) group we just loaded, so the page
+      # anchor stays stable. If nothing was loaded, keep existing cursor.
+      new_cursor =
+        case presented do
+          [] -> cursor_id
+          _ -> List.last(presented).id
+        end
+
+      new_filters = %{socket.assigns.filters | cursor: new_cursor}
+
+      {:noreply,
+       assign(socket,
+         groups: presented ++ socket.assigns.groups,
+         filters: new_filters,
+         has_older: has_more
        )}
     else
       {:noreply, socket}
@@ -387,6 +438,16 @@ defmodule PaianjenWeb.ListingLive.Index do
               Importați date din little-spider rulând:
               <code class="block mt-2 bg-slate-100 rounded px-3 py-2 text-xs">mix run priv/repo/import_from_export.exs</code>
             </p>
+          </div>
+
+          <div :if={@has_older} class="flex justify-center pt-2 pb-4">
+            <button
+              phx-click="load_previous"
+              phx-disable-with="Se încarcă..."
+              class="px-6 py-2.5 text-sm text-indigo-600 border border-indigo-200 rounded-lg hover:bg-indigo-50 transition-colors"
+            >
+              Încarcă anterioare
+            </button>
           </div>
 
           <div
