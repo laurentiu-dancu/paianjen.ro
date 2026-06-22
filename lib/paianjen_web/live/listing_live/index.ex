@@ -360,7 +360,7 @@ defmodule PaianjenWeb.ListingLive.Index do
     <div class="min-h-screen bg-slate-50">
 
 
-      <div class="max-w-[1400px] mx-auto px-4 py-6 flex gap-6">
+      <div class="max-w-[1400px] mx-auto px-2 sm:px-4 py-3 sm:py-6 flex gap-3 sm:gap-6">
         <aside class="hidden lg:block w-64 flex-shrink-0">
           <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 sticky top-20 z-10">
             <div class="flex items-center justify-between mb-5">
@@ -574,7 +574,7 @@ defmodule PaianjenWeb.ListingLive.Index do
       <.spider_web days_on_market={@group.days_on_market} />
 
       <div class="flex gap-0">
-        <div class="w-44 flex-shrink-0 relative">
+        <div class="w-32 sm:w-44 flex-shrink-0 relative aspect-[4/3]">
           <%= if @group.image_url do %>
             <.image_with_fallback src={@group.image_url} alt={"Apartament #{@group.district || @group.city}"} class="absolute inset-0 w-full h-full" />
           <% else %>
@@ -582,7 +582,7 @@ defmodule PaianjenWeb.ListingLive.Index do
           <% end %>
         </div>
 
-        <div class="flex-1 p-5 min-w-0">
+        <div class="flex-1 p-3 sm:p-5 min-w-0">
           <div class="flex items-center gap-1.5 text-slate-400 text-xs mb-1.5">
             <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
