@@ -14,10 +14,21 @@ defmodule PaianjenWeb.Router do
     plug :accepts, ["json"]
   end
 
+  pipeline :authenticated do
+    plug PaianjenWeb.AuthPlug
+  end
+
   scope "/", PaianjenWeb do
     pipe_through :browser
 
     live "/", PageLive, :index
+    post "/login", LoginController, :create
+    delete "/logout", LoginController, :delete
+  end
+
+  scope "/", PaianjenWeb do
+    pipe_through [:browser, :authenticated]
+
     live "/listari", ListingLive.Index, :index
     live "/listari/:id", ListingLive.Show, :show
   end

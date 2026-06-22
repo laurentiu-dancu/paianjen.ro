@@ -170,11 +170,6 @@ defmodule PaianjenWeb.ListingLive.Index do
     end
   end
 
-  @impl true
-  def handle_event("logout", _params, socket) do
-    {:noreply, push_navigate(socket, to: ~p"/")}
-  end
-
   defp default_filters do
     %{
       search: "",
@@ -363,31 +358,7 @@ defmodule PaianjenWeb.ListingLive.Index do
   def render(assigns) do
     ~H"""
     <div class="min-h-screen bg-slate-50">
-      <%!-- Mobile filter toggle + logout --%>
-      <div class="lg:hidden flex items-center justify-end gap-3 px-4 py-3 bg-white border-b border-slate-100">
-        <button
-          phx-click="toggle_sidebar"
-          class="flex items-center gap-1.5 px-3 py-1.5 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-          </svg>
-          Filtre
-          <span :if={active_filter_count(@filters) > 0} class="bg-indigo-500 text-white text-xs rounded-full px-1.5 py-0.5 leading-none">
-            <%= active_filter_count(@filters) %>
-          </span>
-        </button>
 
-        <button
-          phx-click="logout"
-          class="flex items-center gap-1.5 px-3 py-1.5 text-sm text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-          </svg>
-          Ieși
-        </button>
-      </div>
 
       <div class="max-w-[1400px] mx-auto px-4 py-6 flex gap-6">
         <aside class="hidden lg:block w-64 flex-shrink-0">

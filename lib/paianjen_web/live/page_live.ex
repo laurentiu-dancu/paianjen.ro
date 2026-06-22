@@ -1,36 +1,16 @@
 defmodule PaianjenWeb.PageLive do
   use PaianjenWeb, :live_view
 
-  @password "prietenpaianjen"
-
   @impl true
-  def mount(_params, _session, socket) do
-    {:ok,
-     assign(socket,
-       page_title: "Acasă",
-       password: "",
-       error: false,
-       authenticated: false
-     )}
-  end
-
-  @impl true
-  def handle_event("check_password", %{"password" => password}, socket) do
-    if password == @password do
-      {:noreply, push_navigate(socket, to: ~p"/listari")}
+  def mount(_params, session, socket) do
+    if session["authenticated"] do
+      {:ok, push_navigate(socket, to: ~p"/listari")}
     else
-      {:noreply, assign(socket, error: true, password: "")}
+      {:ok,
+       assign(socket,
+         page_title: "Acasă"
+       )}
     end
-  end
-
-  @impl true
-  def handle_event("update_password", %{"password" => password}, socket) do
-    {:noreply, assign(socket, password: password, error: false)}
-  end
-
-  @impl true
-  def handle_info(:clear_error, socket) do
-    {:noreply, assign(socket, error: false)}
   end
 
   @impl true
@@ -51,19 +31,20 @@ defmodule PaianjenWeb.PageLive do
         <p class="text-slate-600 text-center mb-6 text-sm">
           Accesul este rezervat prietenilor paianjen.ro
         </p>
-        <form phx-submit="check_password" phx-change="update_password">
+        <form method="post" action="/login">
+          <input type="hidden" name="_csrf_token" value={Phoenix.Controller.get_csrf_token()} />
+          <input type="hidden" name="return_to" value="/listari" />
           <div class="mb-5">
             <label for="password" class="block text-sm text-slate-700 mb-1.5">Parola</label>
             <input
               type="password"
               id="password"
               name="password"
-              value={@password}
-              class={"w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400 text-slate-900 transition-colors #{if @error, do: "border-red-400 bg-red-50", else: "border-slate-200 bg-slate-50"}"}
+              class={"w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400 text-slate-900 transition-colors #{if Phoenix.Flash.get(@flash, :error) != nil, do: "border-red-400 bg-red-50", else: "border-slate-200 bg-slate-50"}"}
               placeholder="Introdu parola"
               autofocus
             />
-            <p :if={@error} class="text-red-500 text-xs mt-1.5">
+            <p :if={Phoenix.Flash.get(@flash, :error) != nil} class="text-red-500 text-xs mt-1.5">
               Parolă incorectă — verifică pe social media!
             </p>
           </div>

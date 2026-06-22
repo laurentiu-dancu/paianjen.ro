@@ -434,11 +434,12 @@ defmodule Paianjen.Listings do
 
   defp filter_by_commission(query, opts) do
     if Keyword.get(opts, :with_commission, false) do
-      # Find groups that have at least one listing with zero commission (not private seller)
-      # This matches the "comision 0" badge logic in the listing card
+      # Find groups that have at least one listing with zero commission.
+      # Private sellers (proprietar) never ask for commission, so they are
+      # inherently commission-free and should be included.
       listing_ids =
         Listing
-        |> where([l], l.agency_commission == 0 and l.is_private_seller == false)
+        |> where([l], l.agency_commission == 0 or l.is_private_seller == true)
         |> select([l], l.group_id)
 
       where(query, [g], g.id in subquery(listing_ids))
