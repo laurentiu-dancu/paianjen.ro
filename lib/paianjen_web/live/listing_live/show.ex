@@ -5,7 +5,7 @@ defmodule PaianjenWeb.ListingLive.Show do
   alias Paianjen.Listings.GroupPresenter
 
   @impl true
-  def mount(%{"id" => id}, _session, socket) do
+  def mount(%{"id" => id} = params, _session, socket) do
     group = load_group(id)
     similar_groups = load_similar_groups(id)
 
@@ -13,6 +13,8 @@ defmodule PaianjenWeb.ListingLive.Show do
      assign(socket,
        page_title: (group && (group.zone || group.district)) || "Detalii",
        group: group,
+       group_id: id,
+       return_to: params["return_to"],
        similar_groups: similar_groups
      )}
   end
@@ -80,12 +82,12 @@ defmodule PaianjenWeb.ListingLive.Show do
       <%!-- Header --%>
       <header class="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-10">
         <div class="max-w-7xl mx-auto px-4 py-4">
-          <.link navigate={~p"/listari"} class="flex items-center gap-2 text-gray-600 hover:text-gray-900">
+          <a href={@return_to || ~p"/listari?cursor=#{@group_id}"} class="flex items-center gap-2 text-gray-600 hover:text-gray-900">
             <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
             </svg>
             Înapoi la listări
-          </.link>
+          </a>
         </div>
       </header>
 

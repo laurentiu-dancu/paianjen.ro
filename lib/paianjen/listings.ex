@@ -11,7 +11,9 @@ defmodule Paianjen.Listings do
   # ---- Listing Groups ----
 
   def list_groups(opts \\ []) do
-    ListingGroup    |> filter_by_active(opts)    |> filter_by_city(opts)
+    ListingGroup
+    |> filter_by_active(opts)
+    |> filter_by_city(opts)
     |> filter_by_district(opts)
     |> filter_by_min_price(opts)
     |> filter_by_max_price(opts)
@@ -20,7 +22,7 @@ defmodule Paianjen.Listings do
     |> filter_by_parking(opts)
     |> filter_by_commission(opts)
     |> filter_by_search(opts)
-    |> order_by([g], desc: g.earliest_first_seen)
+    |> order_by([g], desc: g.earliest_first_seen, asc: g.id)
     |> Repo.all()
     |> Repo.preload(:listings)
   end
@@ -28,7 +30,7 @@ defmodule Paianjen.Listings do
   def list_groups_paginated(opts \\ []) do
     page = Keyword.get(opts, :page, 1)
     page_size = Keyword.get(opts, :page_size, 20)
-    offset = (page - 1) * page_size
+    offset = Keyword.get(opts, :offset, (page - 1) * page_size)
 
     base_query =
       ListingGroup
@@ -47,7 +49,7 @@ defmodule Paianjen.Listings do
 
     groups =
       base_query
-      |> order_by([g], desc: g.earliest_first_seen)
+      |> order_by([g], desc: g.earliest_first_seen, asc: g.id)
       |> limit(^page_size)
       |> offset(^offset)
       |> Repo.all()
@@ -66,6 +68,46 @@ defmodule Paianjen.Listings do
   def get_group!(id) do
     Repo.get!(ListingGroup, id)
     |> Repo.preload(:listings)
+  end
+
+  @doc """
+  Resolves a cursor (group_id) to an offset and page number.
+  Returns {offset, page} so the cursor group appears first in the results.
+  Falls back to {0, 1} if the group is not found.
+  """
+  def resolve_cursor(cursor_id, opts \\ []) do
+    case Repo.get(ListingGroup, cursor_id) do
+      nil ->
+        {0, 1}
+
+      group ->
+        base_query =
+          ListingGroup
+          |> filter_by_active(opts)
+          |> filter_by_city(opts)
+          |> filter_by_district(opts)
+          |> filter_by_min_price(opts)
+          |> filter_by_max_price(opts)
+          |> filter_by_min_surface(opts)
+          |> filter_by_max_surface(opts)
+          |> filter_by_parking(opts)
+          |> filter_by_commission(opts)
+          |> filter_by_search(opts)
+
+        # Count how many groups come before this one (earliest_first_seen DESC, id ASC)
+        position =
+          base_query
+          |> where(
+            [g],
+            g.earliest_first_seen > ^group.earliest_first_seen or
+              (g.earliest_first_seen == ^group.earliest_first_seen and g.id > ^group.id)
+          )
+          |> Repo.aggregate(:count, :id)
+
+        page_size = Keyword.get(opts, :page_size, 20)
+        page = div(position, page_size) + 1
+        {position, page}
+    end
   end
 
   @doc "Returns distinct cities and districts with their group counts, ordered by count desc."

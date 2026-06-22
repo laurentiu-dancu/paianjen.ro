@@ -7,8 +7,10 @@ defmodule PaianjenWeb.ListingLive.Index do
   @page_size 20
 
   @impl true
-  def mount(_params, _session, socket) do
-    page = load_page(1, default_filters())
+  def mount(params, _session, socket) do
+    filters = parse_filters_from_params(params)
+    {offset, page_number} = resolve_offset(params, filters)
+    page = load_page(page_number, offset, filters)
 
     {:ok,
      assign(socket,
@@ -20,7 +22,7 @@ defmodule PaianjenWeb.ListingLive.Index do
        has_more: page.has_more,
        cities: page.cities,
        districts: page.districts,
-       filters: default_filters(),
+       filters: filters,
        sidebar_open: false,
        loading: false
      )}
@@ -28,20 +30,30 @@ defmodule PaianjenWeb.ListingLive.Index do
 
   @impl true
   def handle_event("apply_filters", params, socket) do
-    filters = merge_filters(socket.assigns.filters, params)
-    page = load_page(1, filters)
+    filters =
+      socket.assigns.filters
+      |> merge_filters(params)
+      |> Map.merge(%{
+        with_parking: params["parking"] == "true",
+        with_commission: params["commission"] == "true",
+        cursor: ""
+      })
 
-    {:noreply,
-     assign(socket,
-       filters: filters,
-       groups: page.groups,
-       total_count: page.total_count,
-       page: 1,
-       total_pages: page.total_pages,
-       has_more: page.has_more,
-       cities: page.cities,
-       districts: page.districts
-     )}
+    page = load_page(1, 0, filters)
+
+    socket =
+      assign(socket,
+        filters: filters,
+        groups: page.groups,
+        total_count: page.total_count,
+        page: 1,
+        total_pages: page.total_pages,
+        has_more: page.has_more,
+        cities: page.cities,
+        districts: page.districts
+      )
+
+    {:noreply, push_navigate(socket, to: build_listari_path(filters, 1))}
   end
 
   @impl true
@@ -54,51 +66,33 @@ defmodule PaianjenWeb.ListingLive.Index do
   @impl true
   def handle_event("toggle_parking", _params, socket) do
     filters = %{socket.assigns.filters | with_parking: !socket.assigns.filters.with_parking}
-    page = load_page(1, filters)
-
-    {:noreply,
-     assign(socket,
-       filters: filters,
-       groups: page.groups,
-       total_count: page.total_count,
-       page: 1,
-       total_pages: page.total_pages,
-       has_more: page.has_more
-     )}
+    {:noreply, assign(socket, filters: filters)}
   end
 
   @impl true
   def handle_event("toggle_commission", _params, socket) do
     filters = %{socket.assigns.filters | with_commission: !socket.assigns.filters.with_commission}
-    page = load_page(1, filters)
-
-    {:noreply,
-     assign(socket,
-       filters: filters,
-       groups: page.groups,
-       total_count: page.total_count,
-       page: 1,
-       total_pages: page.total_pages,
-       has_more: page.has_more
-     )}
+    {:noreply, assign(socket, filters: filters)}
   end
 
   @impl true
   def handle_event("reset_filters", _params, socket) do
     filters = default_filters()
-    page = load_page(1, filters)
+    page = load_page(1, 0, filters)
 
-    {:noreply,
-     assign(socket,
-       filters: filters,
-       groups: page.groups,
-       total_count: page.total_count,
-       page: 1,
-       total_pages: page.total_pages,
-       has_more: page.has_more,
-       cities: page.cities,
-       districts: page.districts
-     )}
+    socket =
+      assign(socket,
+        filters: filters,
+        groups: page.groups,
+        total_count: page.total_count,
+        page: 1,
+        total_pages: page.total_pages,
+        has_more: page.has_more,
+        cities: page.cities,
+        districts: page.districts
+      )
+
+    {:noreply, push_navigate(socket, to: ~p"/listari")}
   end
 
   @impl true
@@ -110,7 +104,8 @@ defmodule PaianjenWeb.ListingLive.Index do
   def handle_event("load_more", _params, socket) do
     if socket.assigns.has_more and !socket.assigns.loading do
       next_page = socket.assigns.page + 1
-      page = load_page(next_page, socket.assigns.filters)
+      next_offset = (next_page - 1) * @page_size
+      page = load_page(next_page, next_offset, socket.assigns.filters)
 
       {:noreply,
        assign(socket,
@@ -139,16 +134,83 @@ defmodule PaianjenWeb.ListingLive.Index do
       min_sqm: "",
       max_sqm: "",
       with_parking: false,
-      with_commission: false
+      with_commission: false,
+      cursor: ""
     }
+  end
+
+  defp parse_filters_from_params(params) do
+    %{
+      search: params["search"] || "",
+      city: params["city"] || "",
+      district: params["district"] || "",
+      min_price: params["min_price"] || "",
+      max_price: params["max_price"] || "",
+      min_sqm: params["min_sqm"] || "",
+      max_sqm: params["max_sqm"] || "",
+      with_parking: params["parking"] == "true",
+      with_commission: params["commission"] == "true",
+      cursor: params["cursor"] || ""
+    }
+  end
+
+  defp resolve_offset(params, filters) do
+    case params["cursor"] do
+      nil ->
+        page =
+          case params["page"] do
+            nil -> 1
+            "" -> 1
+            page -> String.to_integer(page)
+          end
+
+        {(page - 1) * @page_size, page}
+
+      "" ->
+        {0, 1}
+
+      cursor_id ->
+        opts = [
+          page_size: @page_size,
+          city: filters.city,
+          district: filters.district,
+          min_price: parse_int(filters.min_price),
+          max_price: parse_int(filters.max_price),
+          min_sqm: parse_float(filters.min_sqm),
+          max_sqm: parse_float(filters.max_sqm),
+          with_parking: filters.with_parking,
+          with_commission: filters.with_commission,
+          search: filters.search
+        ]
+
+        Listings.resolve_cursor(cursor_id, opts)
+    end
+  end
+
+  defp build_listari_path(filters, page) do
+    params = []
+    params = if filters.search != "", do: [{"search", filters.search} | params], else: params
+    params = if filters.city != "", do: [{"city", filters.city} | params], else: params
+    params = if filters.district != "", do: [{"district", filters.district} | params], else: params
+    params = if filters.min_price != "", do: [{"min_price", filters.min_price} | params], else: params
+    params = if filters.max_price != "", do: [{"max_price", filters.max_price} | params], else: params
+    params = if filters.min_sqm != "", do: [{"min_sqm", filters.min_sqm} | params], else: params
+    params = if filters.max_sqm != "", do: [{"max_sqm", filters.max_sqm} | params], else: params
+    params = if filters.with_parking, do: [{"parking", "true"} | params], else: params
+    params = if filters.with_commission, do: [{"commission", "true"} | params], else: params
+    params = if filters.cursor != "", do: [{"cursor", filters.cursor} | params], else: params
+    params = [{"page", to_string(page)} | params]
+
+    "/listari?#{URI.encode_query(params)}"
   end
 
   # ---- Data loading ----
 
-  defp load_page(page, filters) do
+  defp load_page(page, offset, filters) do
     opts = [
       page: page,
       page_size: @page_size,
+      offset: offset,
       city: filters.city,
       district: filters.district,
       min_price: parse_int(filters.min_price),
@@ -169,16 +231,9 @@ defmodule PaianjenWeb.ListingLive.Index do
         GroupPresenter.from_group(group, listings)
       end)
 
-    {cities, districts} =
-      if page == 1 do
-        rows = Listings.list_cities_and_districts()
-        # Already ordered by count DESC from the query — just extract unique values preserving order
-        cities = rows |> Enum.map(& &1.city) |> Enum.reject(&is_nil/1) |> Enum.uniq()
-        districts = rows |> Enum.map(& &1.district) |> Enum.reject(&is_nil/1) |> Enum.uniq()
-        {cities, districts}
-      else
-        {extract_distinct(groups, & &1.city), extract_distinct(groups, & &1.district)}
-      end
+    rows = Listings.list_cities_and_districts()
+    cities = rows |> Enum.map(& &1.city) |> Enum.reject(&is_nil/1) |> Enum.uniq()
+    districts = rows |> Enum.map(& &1.district) |> Enum.reject(&is_nil/1) |> Enum.uniq()
 
     %{
       groups: groups,
@@ -191,14 +246,6 @@ defmodule PaianjenWeb.ListingLive.Index do
     }
   end
 
-  defp extract_distinct(groups, field_fn) do
-    groups
-    |> Enum.map(field_fn)
-    |> Enum.reject(&is_nil/1)
-    |> Enum.uniq()
-    |> Enum.sort()
-  end
-
   defp merge_filters(current, params) do
     Map.merge(current, %{
       search: params["search"] || "",
@@ -207,7 +254,8 @@ defmodule PaianjenWeb.ListingLive.Index do
       min_price: params["min_price"] || "",
       max_price: params["max_price"] || "",
       min_sqm: params["min_sqm"] || "",
-      max_sqm: params["max_sqm"] || ""
+      max_sqm: params["max_sqm"] || "",
+      cursor: params["cursor"] || ""
     })
   end
 
@@ -218,8 +266,14 @@ defmodule PaianjenWeb.ListingLive.Index do
 
   defp parse_float(""), do: nil
   defp parse_float(nil), do: nil
-  defp parse_float(s) when is_binary(s), do: String.to_float(s)
+  defp parse_float(s) when is_binary(s) do
+    case Float.parse(s) do
+      {f, ""} -> f
+      _ -> nil
+    end
+  end
   defp parse_float(n) when is_float(n), do: n
+  defp parse_float(n) when is_integer(n), do: n * 1.0
 
   defp active_filter_count(filters) do
     [
@@ -370,6 +424,10 @@ defmodule PaianjenWeb.ListingLive.Index do
   defp filter_panel(assigns) do
     ~H"""
     <form phx-submit="apply_filters" class="space-y-6">
+      <%!-- Hidden inputs for toggle states so form submission includes them --%>
+      <input type="hidden" name="parking" value={"#{@filters.with_parking}"} />
+      <input type="hidden" name="commission" value={"#{@filters.with_commission}"} />
+
       <div>
         <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1.5">Caută</label>
         <div class="relative">
@@ -477,8 +535,8 @@ defmodule PaianjenWeb.ListingLive.Index do
     ~H"""
     <a
       href={~p"/listari/#{@group.id}"}
-      target="_blank"
-      rel="noopener noreferrer"
+      data-listing-card
+      data-group-id={@group.id}
       class="bg-white border border-slate-100 rounded-2xl shadow-sm hover:shadow-md hover:border-indigo-100 transition-all cursor-pointer overflow-hidden relative block"
     >
       <.spider_web days_on_market={@group.days_on_market} />

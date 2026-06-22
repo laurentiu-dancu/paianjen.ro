@@ -91,5 +91,25 @@ let liveSocket = new LiveSocket("/live", Socket, {
   hooks: Hooks,
 });
 
+// Intercept listing card clicks to set cursor in URL before navigating to detail.
+// Also encodes the full listing URL as a return_to param on the detail link so the
+// detail page back button can restore filters correctly.
+document.addEventListener("click", (e) => {
+  const card = e.target.closest("[data-listing-card]");
+  if (!card) return;
+
+  const groupId = card.dataset.groupId;
+  if (!groupId) return;
+
+  const params = new URLSearchParams(window.location.search);
+  params.set("cursor", groupId);
+  const listingUrl = "/listari?" + params.toString();
+  history.replaceState(null, "", listingUrl);
+
+  // Update the card's href to include return_to so the detail page knows the filters
+  const separator = card.href.includes("?") ? "&" : "?";
+  card.href = card.href + separator + "return_to=" + encodeURIComponent(listingUrl);
+});
+
 liveSocket.connect();
 window.liveSocket = liveSocket;
