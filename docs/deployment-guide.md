@@ -2,6 +2,8 @@
 
 Deploy paianjen.ro to a bare Linux VPS without Docker. This guide covers everything from a fresh Ubuntu server to a running production instance.
 
+This is the configuration that is known to work on the production VPS (`spider-vm`).
+
 ---
 
 ## 1. VPS Requirements
@@ -122,34 +124,42 @@ mix local.rebar --force
 MIX_ENV=prod mix deps.get
 ```
 
-### Create `prod.secret.exs`
+### Create `.env` file
 
-This file holds production secrets and is gitignored:
+This file is loaded by the systemd service and the deploy scripts:
 
 ```bash
-cat > config/prod.secret.exs << 'EOF'
-import Config
-
-config :paianjen, PaianjenWeb.Endpoint,
-  secret_key_base: "GENERATE_A_64_BYTE_SECRET_HERE",
-  url: [host: "paianjen.ro", port: 443],
-  http: [ip: {127, 0, 0, 1}, port: 4000]
-
-config :paianjen, Paianjen.Repo,
-  url: "ecto://paianjen:YOUR_DB_PASSWORD@localhost:5432/paianjen_prod",
-  pool_size: 10
+cat > /opt/paianjen/.env << 'EOF'
+DATABASE_URL=ecto://paianjen:YOUR_DB_PASSWORD@127.0.0.1:5432/paianjen_prod
+SECRET_KEY_BASE=GENERATE_A_64_BYTE_SECRET
+PHX_HOST=paianjen.ro
+PORT=4000
+POOL_SIZE=10
 EOF
 ```
 
-Generate a real secret key base:
+Generate a real secret:
 
 ```bash
 mix phx.gen.secret 64
 ```
 
-Copy the output and replace `GENERATE_A_64_BYTE_SECRET_HERE` in `prod.secret.exs`.
+Replace `GENERATE_A_64_BYTE_SECRET` and `YOUR_DB_PASSWORD` with real values.
 
-Also update the database URL with your real password.
+### Create `config/prod.secret.exs`
+
+```elixir
+import Config
+
+secret_key_base = System.get_env("SECRET_KEY_BASE")
+phx_host = System.get_env("PHX_HOST") || "paianjen.ro"
+port = String.to_integer(System.get_env("PORT") || "4000")
+
+config :paianjen, PaianjenWeb.Endpoint,
+  secret_key_base: secret_key_base,
+  url: [host: phx_host, port: 443],
+  http: [ip: {127, 0, 0, 1}, port: port]
+```
 
 ### Build for production
 
@@ -178,37 +188,21 @@ After=network.target postgresql.service
 
 [Service]
 Type=simple
-User=www-data
-Group=www-data
+User=azureuser
+Group=azureuser
 WorkingDirectory=/opt/paianjen
 Environment=LANG=en_US.UTF-8
 EnvironmentFile=/opt/paianjen/.env
-ExecStart=/opt/paianjen/bin/paianjen start
-ExecStop=/opt/paianjen/bin/paianjen stop
+ExecStart=/opt/paianjen/_build/prod/rel/paianjen/bin/paianjen start
+ExecStop=/opt/paianjen/_build/prod/rel/paianjen/bin/paianjen stop
 Restart=on-failure
 RestartSec=5
 
 [Install]
-WantedBy=multi-user.target
+Wanted-by=multi-user.target
 ```
 
-Create `/opt/paianjen/.env`:
-
-```bash
-export DATABASE_URL="ecto://paianjen:YOUR_DB_PASSWORD@localhost:5432/paianjen_prod"
-export SECRET_KEY_BASE="your_64_byte_secret"
-export PHX_HOST="paianjen.ro"
-export PORT=4000
-export POOL_SIZE=10
-export ERL_AFLAGS="-proto_dist inet6_tcp"
-```
-
-Set permissions:
-
-```bash
-sudo chown www-data:www-data /opt/paianjen/.env
-sudo chmod 600 /opt/paianjen/.env
-```
+**Important**: Replace `User=azureuser` with your actual user. The release path must point to the actual release directory.
 
 Enable and start:
 
@@ -230,8 +224,7 @@ journalctl -u paianjen -f
 ## 7. Run Migrations
 
 ```bash
-cd /opt/paianjen
-sudo -u www-data bash -c "source .env && bin/paianjen eval 'Paianjen.Release.migrate()'"
+sudo -u azureuser bash -c "set -a && source /opt/paianjen/.env && /opt/paianjen/_build/prod/rel/paianjen/bin/paianjen eval 'Paianjen.Release.migrate()'"
 ```
 
 ---
