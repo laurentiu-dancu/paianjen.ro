@@ -224,6 +224,13 @@ MIX_ENV=prod mix compile
 MIX_ENV=prod mix release
 source .env
 bin/paianjen eval 'Paianjen.Release.migrate()'
+# Import latest export if present
+IMPORT_FILE="/opt/paianjen/data/paianjen_export_full.jsonl.gz"
+if [[ -f "$IMPORT_FILE" ]]; then
+  echo "Importing data from $IMPORT_FILE..."
+  MIX_ENV=prod mix run priv/repo/import_from_export.exs "$IMPORT_FILE"
+  echo "Import complete."
+fi
 sudo systemctl restart paianjen
 DEPLOYEOF
 chmod +x "$APP_DIR/bin/deploy.sh"

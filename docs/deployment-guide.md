@@ -322,8 +322,16 @@ chmod +x /opt/paianjen/bin/deploy.sh
 little-spider can now deploy by running:
 
 ```bash
-ssh deploy@your-server "cd /opt/paianjen && bash bin/deploy.sh"
+ssh azureuser@paianjen.ro "cd /opt/paianjen && bash bin/deploy.sh"
 ```
+
+The deploy script will:
+1. Pull latest code
+2. Build assets and compile
+3. Create a new release
+4. Run database migrations
+5. Import the uploaded export file (if present)
+6. Restart the systemd service
 
 ---
 
