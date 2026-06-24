@@ -1,7 +1,7 @@
 defmodule PaianjenWeb.LoginController do
   use PaianjenWeb, :controller
 
-  @password "prietenpaianjen"
+  @password "friendofspider"
 
   def create(conn, %{"password" => password, "return_to" => return_to}) do
     if password == @password do
