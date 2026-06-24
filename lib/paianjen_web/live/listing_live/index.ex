@@ -392,7 +392,7 @@ defmodule PaianjenWeb.ListingLive.Index do
           <div class="flex items-center justify-between mb-4">
             <p class="text-sm text-slate-600">
               <span class="font-medium text-slate-900"><%= @total_count %></span>
-              <%= if @total_count == 1, do: "grup", else: "grupuri" %>
+              <%= if @total_count == 1, do: "proprietate", else: "proprietăți" %>
               <span :if={active_filter_count(@filters) > 0} class="text-slate-400 ml-1">
                 găsite
               </span>

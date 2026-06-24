@@ -79,18 +79,6 @@ defmodule PaianjenWeb.ListingLive.Show do
   def render(assigns) do
     ~H"""
     <div class="min-h-screen bg-gray-50">
-      <%!-- Header --%>
-      <header class="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-10">
-        <div class="max-w-7xl mx-auto px-4 py-4">
-          <a href={@return_to || ~p"/listari?cursor=#{@group_id}"} class="flex items-center gap-2 text-gray-600 hover:text-gray-900">
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-            </svg>
-            Înapoi la listări
-          </a>
-        </div>
-      </header>
-
       <main :if={@group} class="max-w-7xl mx-auto px-4 py-6 md:py-10">
         <%!-- Property Overview --%>
         <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-5 md:p-8 mb-6 md:mb-8 relative overflow-hidden">
