@@ -404,10 +404,9 @@ defmodule PaianjenWeb.ListingLive.Index do
             <svg xmlns="http://www.w3.org/2000/svg" class="w-12 h-12 mx-auto text-slate-300 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
               <path stroke-linecap="round" stroke-linejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
             </svg>
-            <h3 class="text-lg text-slate-700 mb-2">Nu există date importate</h3>
+            <h3 class="text-lg text-slate-700 mb-2">Nu mai sunt apartamente!</h3>
             <p class="text-sm text-slate-500 max-w-md mx-auto">
-              Importați date din little-spider rulând:
-              <code class="block mt-2 bg-slate-100 rounded px-3 py-2 text-xs">mix run priv/repo/import_from_export.exs</code>
+              E gata, s-au dat toate. Verifică filtrele.
             </p>
           </div>
 
@@ -417,7 +416,7 @@ defmodule PaianjenWeb.ListingLive.Index do
               phx-disable-with="Se încarcă..."
               class="px-6 py-2.5 text-sm text-indigo-600 border border-indigo-200 rounded-lg hover:bg-indigo-50 transition-colors"
             >
-              Încarcă anterioare
+              Încarcă mai noi
             </button>
           </div>
 
@@ -605,12 +604,18 @@ defmodule PaianjenWeb.ListingLive.Index do
           %>
           <p class="text-slate-800 text-xs md:text-sm leading-snug mb-1.5 md:mb-2 pr-2 truncate"><%= representative_title %></p>
 
+          <%
+            has_vat_included = Enum.any?(@group.listings, fn l -> l.vat_included end)
+          %>
           <div class="flex flex-wrap items-end gap-x-2 md:gap-x-6 gap-y-1 md:gap-y-2 mb-1.5 md:mb-4">
             <div>
               <div class="flex items-baseline gap-1.5 md:gap-2 flex-wrap">
                 <span class="text-lg md:text-2xl text-slate-900">
                 <%= if @group.min_price && @group.max_price && @group.min_price == @group.max_price, do: format_price(@group.min_price) <> " €", else: "de la " <> format_price(@group.min_price) <> " €" %>
               </span>
+                <%= if has_vat_included do %>
+                  <span class="px-1.5 py-0.5 bg-blue-50 text-blue-700 text-xs rounded-full border border-blue-100">cu TVA</span>
+                <% end %>
                 <span class="text-xs text-slate-400">
                   <%= if @group.min_price && @group.min_surface, do: format_price(@group.min_price / @group.min_surface) <> " €/m²", else: "" %>
                 </span>

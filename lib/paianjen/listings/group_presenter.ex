@@ -23,7 +23,8 @@ defmodule Paianjen.Listings.GroupPresenter do
     canonical = Enum.find(listings, & &1.is_canonical) || List.first(listings)
 
     # Compute min/max price and surface from active listings
-    prices = Enum.map(active_listings, & &1.price) |> Enum.reject(&is_nil/1)
+    # Use price_with_vat (the full price buyer pays) for accurate filtering
+    prices = Enum.map(active_listings, & &1.price_with_vat || &1.price) |> Enum.reject(&is_nil/1)
     surfaces = Enum.map(active_listings, & &1.surface_area) |> Enum.reject(&is_nil/1)
     min_price = if prices != [], do: Enum.min(prices), else: nil
     max_price = if prices != [], do: Enum.max(prices), else: nil
@@ -74,6 +75,7 @@ defmodule Paianjen.Listings.GroupPresenter do
       zone: l.zone,
       price: l.price || 0,
       price_with_vat: l.price_with_vat || l.price || 0,
+      vat_included: l.vat_included,
       price_per_sqm: l.price_per_sqm,
       surface_area: l.surface_area,
       rooms: l.rooms,

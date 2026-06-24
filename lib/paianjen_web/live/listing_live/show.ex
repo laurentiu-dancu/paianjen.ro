@@ -155,6 +155,9 @@ defmodule PaianjenWeb.ListingLive.Show do
                   <span class="text-3xl md:text-4xl text-slate-900">
                     <%= if @group.min_price && @group.max_price && @group.min_price == @group.max_price, do: format_price(@group.min_price) <> " €", else: "de la " <> format_price(@group.min_price) <> " €" %>
                   </span>
+                  <%= if Enum.any?(@group.listings, & &1.vat_included) do %>
+                    <span class="px-2 py-1 bg-blue-50 text-blue-700 text-sm rounded-full border border-blue-100">cu TVA</span>
+                  <% end %>
                   <%= if @group.min_price && @group.min_surface do %>
                     <span class="text-sm md:text-base text-slate-400"><%= format_price(@group.min_price / @group.min_surface) %> €/m²</span>
                   <% end %>
@@ -245,6 +248,9 @@ defmodule PaianjenWeb.ListingLive.Show do
                           <%= if listing.agency_commission > 0 && !listing.is_private do %>
                             <% min_comm = listing.agency_commission %>
                             <span class="px-1.5 py-0.5 bg-orange-50 text-orange-700 text-xs rounded-full border border-orange-100">comision <%= format_price(min_comm) %> €</span>
+                          <% end %>
+                          <%= if listing.vat_included do %>
+                            <span class="px-1.5 py-0.5 bg-blue-50 text-blue-700 text-xs rounded-full border border-blue-100">cu TVA</span>
                           <% end %>
                           <%= if listing.delisted_date do %>
                             <span class="px-1.5 py-0.5 bg-gray-100 text-gray-600 text-xs rounded">Dezlistat</span>

@@ -259,7 +259,10 @@ defmodule Paianjen.Listings do
       |> put_if_present(:group_zone, canonical_listing_zone(listings_data))
       |> put_if_present(:group_thumbnail, canonical_listing_thumbnail(listings_data))
       |> then(fn attrs ->
-        prices = Enum.map(listings_data, & &1["price"]) |> Enum.reject(&is_nil/1)
+        # For group price aggregation, use price_with_vat (the full price buyer pays)
+        prices = Enum.map(listings_data, fn l ->
+          l["price_with_vat"] || l["price"]
+        end) |> Enum.reject(&is_nil/1)
         surfaces = Enum.map(listings_data, & &1["surface_area"]) |> Enum.reject(&is_nil/1)
         ppsqm = Enum.map(listings_data, & &1["price_per_sqm"]) |> Enum.reject(&is_nil/1)
         first_seens = Enum.map(listings_data, &parse_datetime(&1["first_seen_at"])) |> Enum.reject(&is_nil/1)
@@ -290,6 +293,10 @@ defmodule Paianjen.Listings do
 
       # Upsert listings
       Enum.each(listings_data, fn l_attrs ->
+        raw_price = l_attrs["price"] && round(l_attrs["price"])
+        raw_price_with_vat = l_attrs["price_with_vat"] && round(l_attrs["price_with_vat"])
+        vat_included = l_attrs["vat_included"] || false
+
         listing_map = %{
           id: l_attrs["listing_id"],
           group_id: group_data["entity_id"],
@@ -297,7 +304,7 @@ defmodule Paianjen.Listings do
           source_name: l_attrs["source_name"],
           title: l_attrs["title"],
           description: l_attrs["description"],
-          price: l_attrs["price"] && round(l_attrs["price"]),
+          price: raw_price,
           price_per_sqm: l_attrs["price_per_sqm"],
           rooms: l_attrs["rooms"],
           surface_area: l_attrs["surface_area"],
@@ -326,7 +333,8 @@ defmodule Paianjen.Listings do
           balcony_surface: l_attrs["balcony_surface"],
           parking_price: l_attrs["parking_price"],
           delisted_date: parse_datetime(l_attrs["delisted_date"]),
-          price_with_vat: l_attrs["price_with_vat"] && round(l_attrs["price_with_vat"])
+          price_with_vat: raw_price_with_vat,
+          vat_included: vat_included
         }
 
         upsert_listing(listing_map)
