@@ -42,6 +42,7 @@ defmodule Paianjen.Listings.Listing do
     field :delisted_date, :utc_datetime
     field :price_with_vat, :integer
     field :vat_included, :boolean, default: false
+    field :upserted_at, :utc_datetime
     # search_vector is a PostgreSQL tsvector column managed by DB trigger
     # Not mapped in Ecto schema — populated via SQL trigger in migration
 
@@ -58,7 +59,8 @@ defmodule Paianjen.Listings.Listing do
       :first_seen_at, :last_scraped_at, :seller_name, :seller_agency,
       :seller_phone, :property_type, :thumbnail, :images, :features,
       :agency_commission, :balcony_surface, :parking_price, :delisted_date,
-      :price_with_vat, :vat_included
+      :price_with_vat, :vat_included,
+      :upserted_at
     ])
     |> validate_required([:id, :title])
   end

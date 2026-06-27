@@ -242,7 +242,7 @@ defmodule Paianjen.Listings do
 
   # ---- Import (bulk from JSONL) ----
 
-  def import_group_with_listings(group_data, listings_data) do
+  def import_group_with_listings(group_data, listings_data, upserted_at \\ DateTime.utc_now()) do
     Repo.transaction(fn ->
       # Upsert group
       group_attrs = %{
@@ -250,7 +250,8 @@ defmodule Paianjen.Listings do
         algorithm_version: group_data["algorithm_version"],
         refreshed_at: parse_datetime(group_data["refreshed_at"]),
         inserted_at: parse_datetime(group_data["created_at"]),
-        updated_at: parse_datetime(group_data["refreshed_at"])
+        updated_at: parse_datetime(group_data["refreshed_at"]),
+        upserted_at: upserted_at
       }
 
       group_attrs = group_attrs
@@ -334,7 +335,8 @@ defmodule Paianjen.Listings do
           parking_price: l_attrs["parking_price"],
           delisted_date: parse_datetime(l_attrs["delisted_date"]),
           price_with_vat: raw_price_with_vat,
-          vat_included: vat_included
+          vat_included: vat_included,
+          upserted_at: upserted_at
         }
 
         upsert_listing(listing_map)
@@ -346,7 +348,8 @@ defmodule Paianjen.Listings do
           source_group_id: group_data["entity_id"],
           similar_group_id: sg["entity_id"],
           similarity_score: sg["similarity_score"],
-          match_count: sg["match_count"]
+          match_count: sg["match_count"],
+          upserted_at: upserted_at
         }
 
         case Repo.get_by(SimilarGroup, source_group_id: sg_attrs.source_group_id, similar_group_id: sg_attrs.similar_group_id) do
@@ -365,6 +368,28 @@ defmodule Paianjen.Listings do
       end
 
       group
+    end)
+  end
+
+  @doc """
+  Deletes all records that were not touched by the current import
+  (i.e. upserted_at < import_time). Cleans up stale groups, listings,
+  and similar_groups that are no longer present in the export.
+
+  Delete order respects logical dependencies:
+  similar_groups → listings → listing_groups
+  """
+  def cleanup_orphans(import_time) do
+    Repo.transaction(fn ->
+      {sim_count, _} = Repo.delete_all(from(sg in SimilarGroup, where: sg.upserted_at < ^import_time or is_nil(sg.upserted_at)))
+      {listing_count, _} = Repo.delete_all(from(l in Listing, where: l.upserted_at < ^import_time or is_nil(l.upserted_at)))
+      {group_count, _} = Repo.delete_all(from(g in ListingGroup, where: g.upserted_at < ^import_time or is_nil(g.upserted_at)))
+
+      %{
+        deleted_similar_groups: sim_count,
+        deleted_listings: listing_count,
+        deleted_groups: group_count
+      }
     end)
   end
 

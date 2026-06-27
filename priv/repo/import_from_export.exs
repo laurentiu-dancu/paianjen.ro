@@ -18,13 +18,18 @@ defmodule ImportFromExport do
     IO.puts("Export metadata: #{Jason.encode!(meta)}")
     IO.puts("Found #{length(groups)} groups to import")
 
+    # Single timestamp for this entire import run — all upserts get this value,
+    # and anything with an older upserted_at after import is an orphan to clean up.
+    import_time = DateTime.utc_now()
+    IO.puts("Import timestamp: #{DateTime.to_iso8601(import_time)}")
+
     {success, failed} =
       groups
       |> Enum.reduce({0, 0}, fn group, {ok, fail} ->
         entity_id = group["entity_id"]
         listings = group["listings"]
 
-        case Listings.import_group_with_listings(group, listings) do
+        case Listings.import_group_with_listings(group, listings, import_time) do
           {:ok, _group} ->
             IO.puts("  ✓ Imported group #{entity_id} (#{length(listings)} listings)")
             {ok + 1, fail}
@@ -36,6 +41,11 @@ defmodule ImportFromExport do
       end)
 
     IO.puts("\nImport complete: #{success} succeeded, #{failed} failed")
+
+    # Clean up orphans: anything not touched by this import (upserted_at < import_time)
+    IO.puts("\nCleaning up orphaned records...")
+    {:ok, deleted} = Listings.cleanup_orphans(import_time)
+    IO.puts("  Deleted #{deleted.deleted_groups} groups, #{deleted.deleted_listings} listings, #{deleted.deleted_similar_groups} similar_group links")
   end
 
   defp default_path do
@@ -45,7 +55,7 @@ defmodule ImportFromExport do
   defp parse_export(path) do
     {meta, groups} =
       path
-      |> File.stream!()
+      |> stream_lines()
       |> Stream.map(&String.trim/1)
       |> Stream.reject(&(&1 == ""))
       |> Enum.reduce({nil, []}, fn line, {meta, groups} ->
@@ -66,6 +76,15 @@ defmodule ImportFromExport do
       end)
 
     {meta, Enum.reverse(groups)}
+  end
+
+  # Streams lines from a file, transparently decompressing .gz files.
+  defp stream_lines(path) do
+    if String.ends_with?(path, ".gz") do
+      File.stream!(path, [], :compressed)
+    else
+      File.stream!(path, [])
+    end
   end
 end
 
