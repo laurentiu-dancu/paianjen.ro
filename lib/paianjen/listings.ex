@@ -486,14 +486,15 @@ defmodule Paianjen.Listings do
       nil -> query
       "" -> query
       term ->
-        tsquery = term |> String.replace(~r/[^\w\s]/, "") |> String.trim()
+        tsquery = term |> String.trim()
         if tsquery == "" do
           query
         else
           # Full-text search via listing search_vector through subquery
+          # Using websearch_to_tsquery for web-like syntax: -term (NOT), "phrase" (exact), OR
           listing_ids =
             Listing
-            |> where([l], fragment("search_vector @@ plainto_tsquery('romanian', ?)", ^tsquery))
+            |> where([l], fragment("search_vector @@ websearch_to_tsquery('romanian', ?)", ^tsquery))
             |> select([l], l.group_id)
 
           where(query, [g], g.id in subquery(listing_ids))
