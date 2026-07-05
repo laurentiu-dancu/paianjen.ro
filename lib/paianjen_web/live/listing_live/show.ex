@@ -34,18 +34,64 @@ defmodule PaianjenWeb.ListingLive.Show do
   end
 
   defp format_date(%DateTime{} = dt) do
-    Calendar.strftime(dt, "%d %B %Y")
+    format_date_ro(DateTime.to_date(dt))
   end
 
   defp format_date(%NaiveDateTime{} = ndt) do
-    Calendar.strftime(ndt, "%d %B %Y")
+    format_date_ro(ndt)
   end
 
   defp format_date(_), do: "N/A"
 
+  defp format_date_ro(%Date{} = date) do
+    day = date.day
+    month = date.month
+    year = date.year
+    "#{day} #{month_name_ro(month)} #{year}"
+  end
+
+  defp format_date_ro(%NaiveDateTime{} = ndt) do
+    day = ndt.day
+    month = ndt.month
+    year = ndt.year
+    "#{day} #{month_name_ro(month)} #{year}"
+  end
+
+  defp month_name_ro(1), do: "ianuarie"
+  defp month_name_ro(2), do: "februarie"
+  defp month_name_ro(3), do: "martie"
+  defp month_name_ro(4), do: "aprilie"
+  defp month_name_ro(5), do: "mai"
+  defp month_name_ro(6), do: "iunie"
+  defp month_name_ro(7), do: "iulie"
+  defp month_name_ro(8), do: "august"
+  defp month_name_ro(9), do: "septembrie"
+  defp month_name_ro(10), do: "octombrie"
+  defp month_name_ro(11), do: "noiembrie"
+  defp month_name_ro(12), do: "decembrie"
+  defp month_name_ro(_), do: ""
+
   defp days_label(0), do: "Astăzi"
-  defp days_label(1), do: "1 zi pe piață"
+  defp days_label(1), do: "o zi pe piață"
   defp days_label(n), do: "#{n} zile pe piață"
+
+  defp format_time(%DateTime{} = dt) do
+    # Extract time directly from DateTime (stored in UTC)
+    hour = dt.hour
+    minute = dt.minute
+    "#{pad_zero(hour)}:#{pad_zero(minute)}"
+  end
+
+  defp format_time(%NaiveDateTime{} = ndt) do
+    hour = ndt.hour
+    minute = ndt.minute
+    "#{pad_zero(hour)}:#{pad_zero(minute)}"
+  end
+
+  defp format_time(nil), do: ""
+
+  defp pad_zero(n) when n < 10, do: "0#{n}"
+  defp pad_zero(n), do: to_string(n)
 
   defp etaj_label(nil, _), do: "N/A"
   defp etaj_label(0, _), do: "Parter"

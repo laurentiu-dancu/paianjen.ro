@@ -11,7 +11,8 @@ defmodule Paianjen.Listings.GroupPresenter do
     :id, :city, :district, :zone, :min_price, :max_price,
     :min_surface, :max_surface, :rooms, :floor, :total_floors, :year_built,
     :image_url, :parking_price, :days_on_market, :active_listings,
-    :total_listings, :listings, :health_pct, :has_active_listings
+    :total_listings, :listings, :health_pct, :has_active_listings,
+    :first_seen_at  # DateTime when the group was first seen (for showing time when days_on_market == 0)
   ]
 
   @doc "Convert a ListingGroup with preloaded listings into the flat group format."
@@ -61,7 +62,8 @@ defmodule Paianjen.Listings.GroupPresenter do
       total_listings: total_listings,
       has_active_listings: group.has_active_listings,
       listings: flat_listings,
-      health_pct: health_pct
+      health_pct: health_pct,
+      first_seen_at: earliest
     }
   end
 
@@ -98,7 +100,7 @@ defmodule Paianjen.Listings.GroupPresenter do
   defp days_since(nil), do: 0
 
   defp days_since(%DateTime{} = dt) do
-    DateTime.diff(DateTime.utc_now(), dt, :second) |> div(86400)
+    Date.diff(Date.utc_today(), DateTime.to_date(dt))
   end
 
   defp days_since(%NaiveDateTime{} = ndt) do

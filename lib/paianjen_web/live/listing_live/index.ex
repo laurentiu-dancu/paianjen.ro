@@ -351,8 +351,64 @@ defmodule PaianjenWeb.ListingLive.Index do
   end
 
   defp days_label(0), do: "Astăzi"
-  defp days_label(1), do: "1 zi pe piață"
+  defp days_label(1), do: "o zi pe piață"
   defp days_label(n), do: "#{n} zile pe piață"
+
+  defp format_time(%DateTime{} = dt) do
+    # Extract time directly from DateTime (stored in UTC)
+    hour = dt.hour
+    minute = dt.minute
+    "#{pad_zero(hour)}:#{pad_zero(minute)}"
+  end
+
+  defp format_time(%NaiveDateTime{} = ndt) do
+    hour = ndt.hour
+    minute = ndt.minute
+    "#{pad_zero(hour)}:#{pad_zero(minute)}"
+  end
+
+  defp format_time(nil), do: ""
+
+  defp format_date(%DateTime{} = dt) do
+    format_date_ro(DateTime.to_date(dt))
+  end
+
+  defp format_date(%NaiveDateTime{} = ndt) do
+    format_date_ro(ndt)
+  end
+
+  defp format_date(_), do: "N/A"
+
+  defp format_date_ro(%Date{} = date) do
+    day = date.day
+    month = date.month
+    year = date.year
+    "#{day} #{month_name_ro(month)} #{year}"
+  end
+
+  defp format_date_ro(%NaiveDateTime{} = ndt) do
+    day = ndt.day
+    month = ndt.month
+    year = ndt.year
+    "#{day} #{month_name_ro(month)} #{year}"
+  end
+
+  defp month_name_ro(1), do: "ianuarie"
+  defp month_name_ro(2), do: "februarie"
+  defp month_name_ro(3), do: "martie"
+  defp month_name_ro(4), do: "aprilie"
+  defp month_name_ro(5), do: "mai"
+  defp month_name_ro(6), do: "iunie"
+  defp month_name_ro(7), do: "iulie"
+  defp month_name_ro(8), do: "august"
+  defp month_name_ro(9), do: "septembrie"
+  defp month_name_ro(10), do: "octombrie"
+  defp month_name_ro(11), do: "noiembrie"
+  defp month_name_ro(12), do: "decembrie"
+  defp month_name_ro(_), do: ""
+
+  defp pad_zero(n) when n < 10, do: "0#{n}"
+  defp pad_zero(n), do: to_string(n)
 
   @impl true
   def render(assigns) do
@@ -675,7 +731,11 @@ defmodule PaianjenWeb.ListingLive.Index do
               <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              <%= days_label(@group.days_on_market) %>
+              <%= if @group.days_on_market == 0 and @group.first_seen_at do %>
+                Astăzi la <%= format_time(@group.first_seen_at) %>
+              <% else %>
+                <%= days_label(@group.days_on_market) %>
+              <% end %>
             </div>
 
             <%
