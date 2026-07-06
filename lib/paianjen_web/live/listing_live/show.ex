@@ -250,7 +250,7 @@ defmodule PaianjenWeb.ListingLive.Show do
           end)
         %>
         <div class="mb-8 md:mb-10">
-          <h2 class="text-xl md:text-2xl text-slate-900 mb-3 md:mb-6">Toate listările (<%= length(sorted_listings) %></h2>
+          <h2 class="text-xl md:text-2xl text-slate-900 mb-3 md:mb-6">Toate listările (<%= length(sorted_listings) %>)</h2>
 
           <div class="space-y-4">
             <%= for listing <- sorted_listings do %>
