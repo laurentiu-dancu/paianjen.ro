@@ -125,9 +125,9 @@ defmodule PaianjenWeb.ListingLive.Show do
   def render(assigns) do
     ~H"""
     <div class="min-h-screen bg-gray-50">
-      <main :if={@group} class="max-w-7xl mx-auto px-4 py-6 md:py-10">
+      <main :if={@group} class="max-w-7xl mx-auto px-2 md:px-4 py-3 md:py-10">
         <%!-- Property Overview --%>
-        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-5 md:p-8 mb-6 md:mb-8 relative overflow-hidden">
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-3 md:p-8 mb-6 md:mb-8 relative overflow-hidden">
           <.spider_web days_on_market={@group.days_on_market} />
 
           <%
@@ -253,11 +253,11 @@ defmodule PaianjenWeb.ListingLive.Show do
           end)
         %>
         <div class="mb-8 md:mb-10">
-          <h2 class="text-xl md:text-2xl text-slate-900 mb-4 md:mb-6">Toate listările (<%= length(sorted_listings) %>)</h2>
+          <h2 class="text-xl md:text-2xl text-slate-900 mb-3 md:mb-6">Toate listările (<%= length(sorted_listings) %></h2>
 
-          <div class="space-y-3 md:space-y-4">
+          <div class="space-y-4">
             <%= for listing <- sorted_listings do %>
-              <div class={"bg-white rounded-xl md:rounded-2xl shadow-sm border overflow-hidden relative #{if listing.delisted_date, do: "border-gray-200 opacity-60", else: "border-slate-100"}"}>
+              <div class={"bg-white rounded-2xl shadow-sm border overflow-hidden relative #{if listing.delisted_date, do: "border-gray-200 opacity-60", else: "border-slate-100"}"}>
                 <div class="flex gap-0">
                   <%!-- Thumbnail --%>
                   <div class="w-24 sm:w-32 md:w-40 flex-shrink-0 relative aspect-[4/3]">
@@ -268,7 +268,7 @@ defmodule PaianjenWeb.ListingLive.Show do
                     <% end %>
                   </div>
 
-                  <div class="flex-1 p-3 md:p-4 min-w-0">
+                  <div class="flex-1 p-2.5 md:p-4 min-w-0">
                     <div class="flex items-start justify-between gap-3 mb-1.5 md:mb-2">
                       <div class="flex-1 min-w-0">
                         <div class="flex items-baseline gap-2 flex-wrap">
@@ -374,7 +374,7 @@ defmodule PaianjenWeb.ListingLive.Show do
                   href={~p"/listari/#{sg.id}"}
                   target="_blank"
                   rel="noopener noreferrer"
-                  class="bg-white border border-slate-100 rounded-xl md:rounded-2xl shadow-sm hover:shadow-md hover:border-indigo-100 transition-all cursor-pointer overflow-hidden relative block"
+                  class="bg-white border border-slate-100 rounded-2xl shadow-sm hover:shadow-md hover:border-indigo-100 transition-all cursor-pointer overflow-hidden relative block"
                 >
                   <div class="relative aspect-[4/3] bg-slate-100">
                     <%= if sg.image_url do %>

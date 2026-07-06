@@ -5,6 +5,7 @@ defmodule PaianjenWeb.Endpoint do
     store: :cookie,
     key: "_paianjen_key",
     signing_salt: "dev_signing_salt",
+    max_age: 60 * 60 * 24 * 30 * 12,  # like, one year?
     same_site: "Lax"
   ]
 
