@@ -3,7 +3,7 @@ defmodule PaianjenWeb do
   The entrypoint for defining your web interface.
   """
 
-  def static_paths, do: ~w(assets fonts images favicon.ico robots.txt)
+  def static_paths, do: ~w(assets fonts images favicon.ico apple-touch-icon.png favicon-32x32.png favicon-16x16.png site.webmanifest android-chrome-192x192.png android-chrome-512x512.png robots.txt)
 
   def router do
     quote do
