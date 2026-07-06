@@ -39,6 +39,7 @@ defmodule PaianjenWeb.ListingLive.Index do
       |> Map.merge(%{
         with_parking: params["parking"] == "true",
         with_commission: params["commission"] == "true",
+        include_without_images: params["include_without_images"] == "true",
         cursor: ""
       })
 
@@ -75,6 +76,12 @@ defmodule PaianjenWeb.ListingLive.Index do
   @impl true
   def handle_event("toggle_commission", _params, socket) do
     filters = %{socket.assigns.filters | with_commission: !socket.assigns.filters.with_commission}
+    {:noreply, assign(socket, filters: filters)}
+  end
+
+  @impl true
+  def handle_event("toggle_include_without_images", _params, socket) do
+    filters = %{socket.assigns.filters | include_without_images: !socket.assigns.filters.include_without_images}
     {:noreply, assign(socket, filters: filters)}
   end
 
@@ -137,6 +144,7 @@ defmodule PaianjenWeb.ListingLive.Index do
         max_sqm: parse_float(socket.assigns.filters.max_sqm),
         with_parking: socket.assigns.filters.with_parking,
         with_commission: socket.assigns.filters.with_commission,
+        include_without_images: socket.assigns.filters.include_without_images,
         search: socket.assigns.filters.search
       ]
 
@@ -181,6 +189,7 @@ defmodule PaianjenWeb.ListingLive.Index do
       max_sqm: "",
       with_parking: false,
       with_commission: false,
+      include_without_images: false,
       cursor: ""
     }
   end
@@ -196,6 +205,7 @@ defmodule PaianjenWeb.ListingLive.Index do
       max_sqm: params["max_sqm"] || "",
       with_parking: params["parking"] == "true",
       with_commission: params["commission"] == "true",
+      include_without_images: params["include_without_images"] == "true",
       cursor: params["cursor"] || ""
     }
   end
@@ -225,8 +235,7 @@ defmodule PaianjenWeb.ListingLive.Index do
           min_sqm: parse_float(filters.min_sqm),
           max_sqm: parse_float(filters.max_sqm),
           with_parking: filters.with_parking,
-          with_commission: filters.with_commission,
-          search: filters.search
+          with_commission: filters.with_commission,        include_without_images: filters.include_without_images,          search: filters.search
         ]
 
         Listings.resolve_cursor(cursor_id, opts)
@@ -244,6 +253,7 @@ defmodule PaianjenWeb.ListingLive.Index do
     params = if filters.max_sqm != "", do: [{"max_sqm", filters.max_sqm} | params], else: params
     params = if filters.with_parking, do: [{"parking", "true"} | params], else: params
     params = if filters.with_commission, do: [{"commission", "true"} | params], else: params
+    params = if filters.include_without_images, do: [{"include_without_images", "true"} | params], else: params
     params = if filters.cursor != "", do: [{"cursor", filters.cursor} | params], else: params
     params = [{"page", to_string(page)} | params]
 
@@ -265,6 +275,7 @@ defmodule PaianjenWeb.ListingLive.Index do
       max_sqm: parse_float(filters.max_sqm),
       with_parking: filters.with_parking,
       with_commission: filters.with_commission,
+      include_without_images: filters.include_without_images,
       search: filters.search
     ]
 
@@ -334,6 +345,7 @@ defmodule PaianjenWeb.ListingLive.Index do
     |> Enum.count(&(&1 != ""))
     |> Kernel.+(if filters.with_parking, do: 1, else: 0)
     |> Kernel.+(if filters.with_commission, do: 1, else: 0)
+    |> Kernel.+(if filters.include_without_images, do: 1, else: 0)
   end
 
   defp format_price(price) when is_float(price) do
@@ -355,15 +367,12 @@ defmodule PaianjenWeb.ListingLive.Index do
   defp days_label(n), do: "#{n} zile pe piață"
 
   defp format_time(%DateTime{} = dt) do
-    # Extract time directly from DateTime (stored in UTC)
-    hour = dt.hour
-    minute = dt.minute
+    {hour, minute} = Paianjen.Utils.to_bucharest_time(dt)
     "#{pad_zero(hour)}:#{pad_zero(minute)}"
   end
 
   defp format_time(%NaiveDateTime{} = ndt) do
-    hour = ndt.hour
-    minute = ndt.minute
+    {hour, minute} = Paianjen.Utils.to_bucharest_time(ndt)
     "#{pad_zero(hour)}:#{pad_zero(minute)}"
   end
 
@@ -514,6 +523,7 @@ defmodule PaianjenWeb.ListingLive.Index do
       <%!-- Hidden inputs for toggle states so form submission includes them --%>
       <input type="hidden" name="parking" value={"#{@filters.with_parking}"} />
       <input type="hidden" name="commission" value={"#{@filters.with_commission}"} />
+      <input type="hidden" name="include_without_images" value={"#{@filters.include_without_images}"} />
 
       <div>
         <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1.5">Caută</label>
@@ -589,6 +599,18 @@ defmodule PaianjenWeb.ListingLive.Index do
               <path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
             Comision 0
+          </div>
+        </label>
+
+        <label class="flex items-center gap-3 cursor-pointer group">
+          <button type="button" phx-click="toggle_include_without_images" class={"w-10 h-5 rounded-full transition-colors flex-shrink-0 relative #{if @filters.include_without_images, do: "bg-indigo-500", else: "bg-slate-200"}"}>
+            <span class={"absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform #{if @filters.include_without_images, do: "translate-x-5", else: "translate-x-0"}"} />
+          </button>
+          <div class="flex items-center gap-1.5 text-sm text-slate-700 group-hover:text-slate-900">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+            Include fără imagini
           </div>
         </label>
       </div>

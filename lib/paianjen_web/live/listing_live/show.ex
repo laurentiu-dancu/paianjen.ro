@@ -76,15 +76,12 @@ defmodule PaianjenWeb.ListingLive.Show do
   defp days_label(n), do: "#{n} zile pe piață"
 
   defp format_time(%DateTime{} = dt) do
-    # Extract time directly from DateTime (stored in UTC)
-    hour = dt.hour
-    minute = dt.minute
+    {hour, minute} = Paianjen.Utils.to_bucharest_time(dt)
     "#{pad_zero(hour)}:#{pad_zero(minute)}"
   end
 
   defp format_time(%NaiveDateTime{} = ndt) do
-    hour = ndt.hour
-    minute = ndt.minute
+    {hour, minute} = Paianjen.Utils.to_bucharest_time(ndt)
     "#{pad_zero(hour)}:#{pad_zero(minute)}"
   end
 

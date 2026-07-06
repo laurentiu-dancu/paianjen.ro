@@ -21,6 +21,7 @@ defmodule Paianjen.Listings do
     |> filter_by_max_surface(opts)
     |> filter_by_parking(opts)
     |> filter_by_commission(opts)
+    |> filter_by_images(opts)
     |> filter_by_search(opts)
     |> order_by([g], desc: g.earliest_first_seen, asc: g.id)
     |> Repo.all()
@@ -43,6 +44,7 @@ defmodule Paianjen.Listings do
       |> filter_by_max_surface(opts)
       |> filter_by_parking(opts)
       |> filter_by_commission(opts)
+      |> filter_by_images(opts)
       |> filter_by_search(opts)
 
     total_count = Repo.aggregate(base_query, :count, :id)
@@ -92,6 +94,7 @@ defmodule Paianjen.Listings do
           |> filter_by_max_surface(opts)
           |> filter_by_parking(opts)
           |> filter_by_commission(opts)
+          |> filter_by_images(opts)
           |> filter_by_search(opts)
 
         # Count how many groups come before this one (earliest_first_seen DESC, id ASC)
@@ -134,6 +137,7 @@ defmodule Paianjen.Listings do
           |> filter_by_max_surface(opts)
           |> filter_by_parking(opts)
           |> filter_by_commission(opts)
+          |> filter_by_images(opts)
           |> filter_by_search(opts)
 
         # Groups that come BEFORE the cursor in the sort order (newer items)
@@ -478,6 +482,20 @@ defmodule Paianjen.Listings do
       where(query, [g], g.id in subquery(listing_ids))
     else
       query
+    end
+  end
+
+  defp filter_by_images(query, opts) do
+    if Keyword.get(opts, :include_without_images, false) do
+      query
+    else
+      # Only groups where at least one listing has a thumbnail
+      listing_ids =
+        Listing
+        |> where([l], not is_nil(l.thumbnail) and l.thumbnail != "")
+        |> select([l], l.group_id)
+
+      where(query, [g], g.id in subquery(listing_ids))
     end
   end
 

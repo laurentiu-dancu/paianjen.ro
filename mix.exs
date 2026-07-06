@@ -16,7 +16,7 @@ defmodule Paianjen.MixProject do
   def application do
     [
       mod: {Paianjen.Application, []},
-      extra_applications: [:logger, :runtime_tools]
+      extra_applications: [:logger, :runtime_tools, :tzdata]
     ]
   end
 
@@ -50,7 +50,8 @@ defmodule Paianjen.MixProject do
       {:jason, "~> 1.4"},
       {:dns_cluster, "~> 0.1.1"},
       {:bandit, "~> 1.5"},
-      {:number, "~> 1.0"}
+      {:number, "~> 1.0"},
+      {:tzdata, "~> 1.1"}
     ]
   end
 
