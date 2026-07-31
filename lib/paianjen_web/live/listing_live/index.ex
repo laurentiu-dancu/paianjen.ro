@@ -582,7 +582,7 @@ defmodule PaianjenWeb.ListingLive.Index do
               <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
             </svg>
           </summary>
-          <div class="district-panel mt-1 max-h-60 overflow-y-auto overscroll-contain border border-slate-200 rounded-lg bg-white lg:absolute lg:left-0 lg:right-0 lg:top-full lg:z-20 lg:shadow-lg">
+          <div class="district-panel absolute left-0 right-0 top-full z-20 mt-1 max-h-60 overflow-y-auto overscroll-contain border border-slate-200 rounded-lg bg-white shadow-lg">
             <%= for district <- @districts do %>
               <label class="district-option flex items-center gap-3 px-3 py-2.5 min-h-[44px] cursor-pointer hover:bg-slate-50">
                 <input
