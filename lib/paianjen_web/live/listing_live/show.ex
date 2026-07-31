@@ -3,6 +3,7 @@ defmodule PaianjenWeb.ListingLive.Show do
 
   alias Paianjen.Listings
   alias Paianjen.Listings.GroupPresenter
+  alias Paianjen.Listings.PriceHistoryChart
 
   @impl true
   def mount(%{"id" => id} = params, _session, socket) do
@@ -238,6 +239,54 @@ defmodule PaianjenWeb.ListingLive.Show do
               </div>
             </div>
           <% end %>
+
+          <%!-- Price history chart — inside the same container as the image slider, below the text --%>
+          <%
+            price_chart = PriceHistoryChart.build(@group.price_history)
+          %>
+          <%= if price_chart do %>
+            <div class="mt-6 md:mt-8 pt-6 md:pt-8 border-t border-slate-100">
+              <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+                <h2 class="text-lg md:text-xl text-slate-900 flex items-center gap-2">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-indigo-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 3v18h18M7 16l4-6 4 3 4-8" /></svg>
+                  Istoricul prețului
+                </h2>
+                <div class="flex flex-wrap gap-2">
+                  <%= if price_chart.summary.has_drop do %>
+                    <span class="px-2.5 py-1 bg-emerald-50 text-emerald-700 text-xs rounded-full border border-emerald-100 font-medium">
+                      Reducere <%= format_price(price_chart.summary.drop_abs) %> € (−<%= format_pct(price_chart.summary.drop_pct) %>%)
+                    </span>
+                  <% end %>
+                  <span class="px-2.5 py-1 bg-slate-50 text-slate-600 text-xs rounded-full border border-slate-100">
+                    Preț inițial: <%= format_price(price_chart.summary.initial) %> €
+                  </span>
+                  <span class="px-2.5 py-1 bg-slate-50 text-slate-600 text-xs rounded-full border border-slate-100">
+                    Preț actual: <%= format_price(price_chart.summary.current) %> €
+                  </span>
+                  <span class="px-2.5 py-1 bg-slate-50 text-slate-600 text-xs rounded-full border border-slate-100">
+                    Cel mai mic: <%= format_price(price_chart.summary.lowest) %> €
+                  </span>
+                </div>
+              </div>
+
+              <.price_chart chart={price_chart} />
+
+              <div class="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-xs text-slate-400">
+                <span class="flex items-center gap-1.5">
+                  <span class="w-3 h-1 rounded-full bg-indigo-500 inline-block"></span>
+                  Preț minim
+                </span>
+                <span class="flex items-center gap-1.5">
+                  <span class="w-3 h-1 rounded-full bg-slate-300 inline-block"></span>
+                  Preț maxim
+                </span>
+                <span class="flex items-center gap-1.5">
+                  <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block"></span>
+                  Reducere de preț
+                </span>
+              </div>
+            </div>
+          <% end %>
         </div>
 
         <%!-- Individual Listings --%>
@@ -453,5 +502,78 @@ defmodule PaianjenWeb.ListingLive.Show do
       </svg>
     <% end %>
     """
+  end
+
+  defp price_chart(assigns) do
+    ~H"""
+    <div class="w-full">
+      <svg
+        viewBox={"0 0 #{@chart.width} #{@chart.height}"}
+        class="w-full h-auto"
+        role="img"
+        aria-label="Graficul evoluției prețului"
+      >
+        <%= for tick <- @chart.ticks do %>
+          <line x1={@chart.left} x2={@chart.width - @chart.right} y1={Float.round(tick.y, 1)} y2={Float.round(tick.y, 1)} stroke="#e2e8f0" stroke-width="1" />
+          <text x={@chart.left - 8} y={Float.round(tick.y, 1) + 4} text-anchor="end" font-size="11" fill="#94a3b8"><%= tick.label %></text>
+        <% end %>
+        <%= for xl <- @chart.x_labels do %>
+          <text x={Float.round(xl.x, 1)} y={@chart.height - 10} text-anchor="middle" font-size="11" fill="#94a3b8"><%= chart_date_label(xl.date) %></text>
+        <% end %>
+        <path :if={@chart.band != ""} d={@chart.band} fill="#6366f1" opacity="0.08" />
+        <path :if={@chart.max_line != ""} d={@chart.max_line} fill="none" stroke="#94a3b8" stroke-width="1" stroke-dasharray="4 4" opacity="0.6" />
+        <path d={@chart.min_line} fill="none" stroke="#6366f1" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+        <%= for p <- @chart.points do %>
+          <circle
+            cx={Float.round(p.x, 1)}
+            cy={Float.round(p.y_min, 1)}
+            r={if p.is_drop, do: 4.5, else: 3.5}
+            fill={chart_dot_color(p)}
+            stroke="#ffffff"
+            stroke-width="1.5"
+          >
+            <title><%= chart_tooltip(p) %></title>
+          </circle>
+        <% end %>
+      </svg>
+    </div>
+    """
+  end
+
+  defp chart_date_label(%Date{} = d) do
+    "#{d.day} #{month_short_ro(d.month)}"
+  end
+
+  defp month_short_ro(1), do: "ian"
+  defp month_short_ro(2), do: "feb"
+  defp month_short_ro(3), do: "mar"
+  defp month_short_ro(4), do: "apr"
+  defp month_short_ro(5), do: "mai"
+  defp month_short_ro(6), do: "iun"
+  defp month_short_ro(7), do: "iul"
+  defp month_short_ro(8), do: "aug"
+  defp month_short_ro(9), do: "sep"
+  defp month_short_ro(10), do: "oct"
+  defp month_short_ro(11), do: "nov"
+  defp month_short_ro(12), do: "dec"
+  defp month_short_ro(_), do: ""
+
+  defp chart_tooltip(p) do
+    "#{p.date.day} #{month_short_ro(p.date.month)} #{p.date.year} — #{format_price(p.min)} €"
+  end
+
+  defp chart_dot_color(p) do
+    if p.is_drop, do: "#10b981", else: "#6366f1"
+  end
+
+  defp format_pct(pct) when is_number(pct) do
+    pct
+    |> Float.round(1)
+    |> then(fn p ->
+      if p == trunc(p),
+        do: Integer.to_string(trunc(p)),
+        else: :erlang.float_to_binary(p, decimals: 1)
+    end)
+    |> String.replace(".", ",")
   end
 end

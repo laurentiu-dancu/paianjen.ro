@@ -10,8 +10,10 @@ defmodule Paianjen.Listings.GroupPresenter do
   defstruct [
     :id, :city, :district, :zone, :min_price, :max_price,
     :min_surface, :max_surface, :rooms, :floor, :total_floors, :year_built,
-    :image_url, :parking_price, :days_on_market, :active_listings,
+    :image_url, :parking_price, :days_on_market, :days_since_last_price_drop,
+    :last_price_drop_at, :active_listings,
     :total_listings, :listings, :health_pct, :has_active_listings,
+    :price_history,  # group-level price change timeline (from the export)
     :first_seen_at  # DateTime when the group was first seen (for showing time when days_on_market == 0)
   ]
 
@@ -36,6 +38,10 @@ defmodule Paianjen.Listings.GroupPresenter do
     earliest = group.earliest_first_seen || (canonical && canonical.first_seen_at)
     days_on_market = days_since(earliest)
 
+    # Days since the last price drop (0 when the group never had a price drop;
+    # the template gates on last_price_drop_at being non-nil)
+    days_since_last_price_drop = days_since(group.last_price_drop_at)
+
     # Health percentage
     health_pct = if total_listings > 0, do: (active_count / total_listings) * 100, else: 0
 
@@ -58,11 +64,14 @@ defmodule Paianjen.Listings.GroupPresenter do
       image_url: group.group_thumbnail || (canonical && canonical.thumbnail),
       parking_price: canonical && canonical.parking_price,
       days_on_market: days_on_market,
+      days_since_last_price_drop: days_since_last_price_drop,
+      last_price_drop_at: group.last_price_drop_at,
       active_listings: active_count,
       total_listings: total_listings,
       has_active_listings: group.has_active_listings,
       listings: flat_listings,
       health_pct: health_pct,
+      price_history: group.price_history || [],
       first_seen_at: earliest
     }
   end

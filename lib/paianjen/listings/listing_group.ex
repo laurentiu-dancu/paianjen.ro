@@ -23,6 +23,8 @@ defmodule Paianjen.Listings.ListingGroup do
     field :group_city, :string
     field :group_zone, :string
     field :refreshed_at, :utc_datetime
+    field :price_history, {:array, :map}, default: []
+    field :last_price_drop_at, :utc_datetime
     field :upserted_at, :utc_datetime
 
     has_many :listings, Listing, foreign_key: :group_id
@@ -37,6 +39,7 @@ defmodule Paianjen.Listings.ListingGroup do
       :min_surface, :max_surface, :min_price_per_sqm, :max_price_per_sqm,
       :earliest_first_seen, :has_top_floor, :has_private_seller, :has_active_listings,
       :group_thumbnail, :group_district, :group_city, :group_zone, :refreshed_at,
+      :price_history, :last_price_drop_at,
       :upserted_at
     ])
     |> validate_required([:id])

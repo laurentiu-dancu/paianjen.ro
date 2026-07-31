@@ -5,6 +5,7 @@ defmodule PaianjenWeb.ListingLive.Index do
   alias Paianjen.Listings.GroupPresenter
 
   @page_size 20
+  @default_sort "time_on_market"
 
   @impl true
   def mount(params, _session, socket) do
@@ -106,6 +107,30 @@ defmodule PaianjenWeb.ListingLive.Index do
   end
 
   @impl true
+  def handle_event("change_sort", %{"sort_by" => sort_by}, socket) do
+    sort_by = if sort_by in sort_values(), do: sort_by, else: @default_sort
+
+    # Apply immediately, keep all filters, reset pagination to the top
+    filters = %{socket.assigns.filters | sort_by: sort_by, cursor: ""}
+    page = load_page(1, 0, filters)
+
+    socket =
+      assign(socket,
+        filters: filters,
+        groups: page.groups,
+        total_count: page.total_count,
+        page: 1,
+        total_pages: page.total_pages,
+        has_more: page.has_more,
+        has_older: false,
+        cities: page.cities,
+        districts: page.districts
+      )
+
+    {:noreply, push_navigate(socket, to: build_listari_path(filters, 1))}
+  end
+
+  @impl true
   def handle_event("toggle_sidebar", _params, socket) do
     {:noreply, assign(socket, sidebar_open: !socket.assigns.sidebar_open)}
   end
@@ -145,7 +170,8 @@ defmodule PaianjenWeb.ListingLive.Index do
         with_parking: socket.assigns.filters.with_parking,
         with_commission: socket.assigns.filters.with_commission,
         include_without_images: socket.assigns.filters.include_without_images,
-        search: socket.assigns.filters.search
+        search: socket.assigns.filters.search,
+        sort_by: socket.assigns.filters.sort_by
       ]
 
       {older_groups, has_more} = Listings.list_groups_before_cursor(cursor_id, opts)
@@ -190,7 +216,8 @@ defmodule PaianjenWeb.ListingLive.Index do
       with_parking: false,
       with_commission: false,
       include_without_images: false,
-      cursor: ""
+      cursor: "",
+      sort_by: @default_sort
     }
   end
 
@@ -206,7 +233,8 @@ defmodule PaianjenWeb.ListingLive.Index do
       with_parking: params["parking"] == "true",
       with_commission: params["commission"] == "true",
       include_without_images: params["include_without_images"] == "true",
-      cursor: params["cursor"] || ""
+      cursor: params["cursor"] || "",
+      sort_by: params["sort_by"] || @default_sort
     }
   end
 
@@ -235,7 +263,10 @@ defmodule PaianjenWeb.ListingLive.Index do
           min_sqm: parse_float(filters.min_sqm),
           max_sqm: parse_float(filters.max_sqm),
           with_parking: filters.with_parking,
-          with_commission: filters.with_commission,        include_without_images: filters.include_without_images,          search: filters.search
+          with_commission: filters.with_commission,
+          include_without_images: filters.include_without_images,
+          search: filters.search,
+          sort_by: filters.sort_by
         ]
 
         Listings.resolve_cursor(cursor_id, opts)
@@ -261,6 +292,7 @@ defmodule PaianjenWeb.ListingLive.Index do
     params = if filters.with_parking, do: [{"parking", "true"} | params], else: params
     params = if filters.with_commission, do: [{"commission", "true"} | params], else: params
     params = if filters.include_without_images, do: [{"include_without_images", "true"} | params], else: params
+    params = if filters.sort_by != @default_sort, do: [{"sort_by", filters.sort_by} | params], else: params
     params = if filters.cursor != "", do: [{"cursor", filters.cursor} | params], else: params
     params = [{"page", to_string(page)} | params]
 
@@ -283,7 +315,8 @@ defmodule PaianjenWeb.ListingLive.Index do
       with_parking: filters.with_parking,
       with_commission: filters.with_commission,
       include_without_images: filters.include_without_images,
-      search: filters.search
+      search: filters.search,
+      sort_by: filters.sort_by
     ]
 
     result = Listings.list_groups_paginated(opts)
@@ -322,6 +355,16 @@ defmodule PaianjenWeb.ListingLive.Index do
       cursor: params["cursor"] || ""
     })
   end
+
+  # Sort options for the results header dropdown: {value, label}.
+  defp sort_options do
+    [
+      {"time_on_market", "Cele mai noi primele"},
+      {"last_price_drop", "Ultimele reduceri de preț"}
+    ]
+  end
+
+  defp sort_values, do: Enum.map(sort_options(), &elem(&1, 0))
 
   # District can arrive as a single string (old links), a list (multiple select
   # or repeated query params), or be absent. Normalize to a list of strings.
@@ -385,6 +428,11 @@ defmodule PaianjenWeb.ListingLive.Index do
   defp days_label(0), do: "Astăzi"
   defp days_label(1), do: "o zi pe piață"
   defp days_label(n), do: "#{n} zile pe piață"
+
+  defp drop_label(0, %DateTime{} = dt), do: "Reducere azi la #{format_time(dt)}"
+  defp drop_label(0, _), do: "Reducere azi"
+  defp drop_label(1, _), do: "Reducere acum o zi"
+  defp drop_label(n, _), do: "Reducere acum #{n} zile"
 
   defp format_time(%DateTime{} = dt) do
     {hour, minute} = Paianjen.Utils.to_bucharest_time(dt)
@@ -482,7 +530,17 @@ defmodule PaianjenWeb.ListingLive.Index do
                 găsite
               </span>
             </p>
-            <p class="text-xs text-slate-400">cele mai noi primele</p>
+            <form phx-change="change_sort" class="inline-block">
+              <select
+                name="sort_by"
+                aria-label="Sortează după"
+                class="text-xs md:text-sm text-slate-600 border border-slate-200 rounded-lg bg-white px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-400 cursor-pointer"
+              >
+                <%= for {value, label} <- sort_options() do %>
+                  <option value={value} selected={@filters.sort_by == value}><%= label %></option>
+                <% end %>
+              </select>
+            </form>
           </div>
 
           <div :if={@total_count == 0} class="bg-white rounded-2xl border border-slate-100 shadow-sm p-12 text-center">
@@ -787,7 +845,7 @@ defmodule PaianjenWeb.ListingLive.Index do
           </div>
 
           <div class="flex items-center justify-between pt-2 md:pt-3 border-t border-slate-50">
-            <div class="flex items-center gap-1.5 text-xs text-slate-500">
+            <div class="flex flex-wrap items-center gap-1.5 text-xs text-slate-500">
               <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
@@ -795,6 +853,15 @@ defmodule PaianjenWeb.ListingLive.Index do
                 Astăzi la <%= format_time(@group.first_seen_at) %>
               <% else %>
                 <%= days_label(@group.days_on_market) %>
+              <% end %>
+
+              <%= if @group.last_price_drop_at do %>
+                <span class="flex items-center gap-1 text-emerald-600" title="Ultima reducere de preț">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 17l6-6 4 4 8-8m0 0h-5m5 0v5" />
+                  </svg>
+                  <%= drop_label(@group.days_since_last_price_drop, @group.last_price_drop_at) %>
+                </span>
               <% end %>
             </div>
 

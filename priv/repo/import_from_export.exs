@@ -81,7 +81,7 @@ defmodule ImportFromExport do
   # Streams lines from a file, transparently decompressing .gz files.
   defp stream_lines(path) do
     if String.ends_with?(path, ".gz") do
-      File.stream!(path, [], :compressed)
+      File.stream!(path, [:compressed], :line)
     else
       File.stream!(path, [])
     end

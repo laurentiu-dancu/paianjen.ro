@@ -23,6 +23,7 @@ defmodule Paianjen.Listings do
     |> filter_by_commission(opts)
     |> filter_by_images(opts)
     |> filter_by_search(opts)
+    |> filter_by_sort(opts)
     |> order_by([g], desc: g.earliest_first_seen, asc: g.id)
     |> Repo.all()
     |> Repo.preload(:listings)
@@ -46,6 +47,7 @@ defmodule Paianjen.Listings do
       |> filter_by_commission(opts)
       |> filter_by_images(opts)
       |> filter_by_search(opts)
+      |> filter_by_sort(opts)
 
     total_count = Repo.aggregate(base_query, :count, :id)
 
@@ -96,15 +98,12 @@ defmodule Paianjen.Listings do
           |> filter_by_commission(opts)
           |> filter_by_images(opts)
           |> filter_by_search(opts)
+          |> filter_by_sort(opts)
 
-        # Count how many groups come before this one (earliest_first_seen DESC, id ASC)
+        # Count how many groups come before this one in the active sort order
         position =
           base_query
-          |> where(
-            [g],
-            g.earliest_first_seen > ^group.earliest_first_seen or
-              (g.earliest_first_seen == ^group.earliest_first_seen and g.id > ^group.id)
-          )
+          |> groups_before_cursor(group, opts)
           |> Repo.aggregate(:count, :id)
 
         page_size = Keyword.get(opts, :page_size, 20)
@@ -139,17 +138,13 @@ defmodule Paianjen.Listings do
           |> filter_by_commission(opts)
           |> filter_by_images(opts)
           |> filter_by_search(opts)
+          |> filter_by_sort(opts)
 
-        # Groups that come BEFORE the cursor in the sort order (newer items)
-        # Sort is: earliest_first_seen DESC, id ASC
-        # "Before" = higher earliest_first_seen, or same date with higher id
+        # Groups that come BEFORE the cursor in the active sort order (newer items).
+        # "Before" = ordered ahead of the cursor by the sort keys.
         newer_query =
           base_query
-          |> where(
-            [g],
-            g.earliest_first_seen > ^group.earliest_first_seen or
-              (g.earliest_first_seen == ^group.earliest_first_seen and g.id > ^group.id)
-          )
+          |> groups_before_cursor(group, opts)
           |> order_by([g], desc: g.earliest_first_seen, asc: g.id)
           |> limit(^limit + 1)
 
@@ -294,6 +289,12 @@ defmodule Paianjen.Listings do
         end)
       end)
 
+      # Price history + last price drop come pre-computed from the export
+      group_attrs =
+        group_attrs
+        |> put_if_present(:price_history, group_data["group_price_history"] || [])
+        |> put_if_present(:last_price_drop_at, parse_datetime(group_data["last_price_drop_at"]))
+
       {:ok, group} = upsert_group(group_attrs)
 
       # Upsert listings
@@ -340,6 +341,7 @@ defmodule Paianjen.Listings do
           delisted_date: parse_datetime(l_attrs["delisted_date"]),
           price_with_vat: raw_price_with_vat,
           vat_included: vat_included,
+          price_history: l_attrs["price_history"] || [],
           upserted_at: upserted_at
         }
 
@@ -528,6 +530,65 @@ defmodule Paianjen.Listings do
 
           where(query, [g], g.id in subquery(listing_ids))
         end
+    end
+  end
+
+  defp filter_by_sort(query, opts) do
+    case Keyword.get(opts, :sort_by) do
+      "last_price_drop" ->
+        # Most recent price drop first; groups that never dropped (NULL) sort last.
+        # Callers append the tiebreakers (earliest_first_seen DESC, id ASC) via
+        # their own order_by, which Ecto combines into a single ORDER BY.
+        from g in query, order_by: [desc_nulls_last: g.last_price_drop_at]
+
+      _ ->
+        query
+    end
+  end
+
+  # Groups that come BEFORE the cursor group in the given sort order (i.e. the
+  # "newer" items that should appear first). Default sort: earliest_first_seen
+  # DESC, id ASC. last_price_drop sort: last_price_drop_at DESC NULLS LAST, then
+  # the same tiebreakers.
+  #
+  # The cursor's NULL-ness is resolved in Elixir so we never emit a bare
+  # `is_nil(^param)` comparison, which Postgres can't type (indeterminate
+  # datatype) when the param is used only inside IS NULL.
+  defp groups_before_cursor(query, group, opts) do
+    case Keyword.get(opts, :sort_by) do
+      "last_price_drop" ->
+        if is_nil(group.last_price_drop_at) do
+          # Cursor has NULL last_price_drop_at (sorts last under NULLS LAST):
+          # every group with a real drop sorts before it, plus NULL-drop groups
+          # that tiebreak ahead of it.
+          query
+          |> where([g], not is_nil(g.last_price_drop_at))
+          |> or_where(
+            [g],
+            is_nil(g.last_price_drop_at) and
+              (g.earliest_first_seen > ^group.earliest_first_seen or
+                 (g.earliest_first_seen == ^group.earliest_first_seen and g.id > ^group.id))
+          )
+        else
+          # Cursor has a real drop: a greater drop date sorts before it, or an
+          # equal drop date that tiebreaks ahead.
+          query
+          |> where([g], g.last_price_drop_at > ^group.last_price_drop_at)
+          |> or_where(
+            [g],
+            g.last_price_drop_at == ^group.last_price_drop_at and
+              (g.earliest_first_seen > ^group.earliest_first_seen or
+                 (g.earliest_first_seen == ^group.earliest_first_seen and g.id > ^group.id))
+          )
+        end
+
+      _ ->
+        where(
+          query,
+          [g],
+          g.earliest_first_seen > ^group.earliest_first_seen or
+            (g.earliest_first_seen == ^group.earliest_first_seen and g.id > ^group.id)
+        )
     end
   end
 
