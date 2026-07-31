@@ -419,7 +419,18 @@ defmodule Paianjen.Listings do
     case Keyword.get(opts, :district) do
       nil -> query
       "" -> query
-      district -> where(query, [g], g.group_district == ^district)
+      [] -> query
+      districts when is_list(districts) ->
+        districts = Enum.reject(districts, &(&1 in [nil, ""]))
+
+        if districts == [] do
+          query
+        else
+          where(query, [g], g.group_district in ^districts)
+        end
+
+      district ->
+        where(query, [g], g.group_district == ^district)
     end
   end
 

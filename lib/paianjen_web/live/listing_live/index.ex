@@ -182,7 +182,7 @@ defmodule PaianjenWeb.ListingLive.Index do
     %{
       search: "",
       city: "",
-      district: "",
+      district: [],
       min_price: "",
       max_price: "",
       min_sqm: "",
@@ -198,7 +198,7 @@ defmodule PaianjenWeb.ListingLive.Index do
     %{
       search: params["search"] || "",
       city: params["city"] || "",
-      district: params["district"] || "",
+      district: parse_district_param(params["district"]),
       min_price: params["min_price"] || "",
       max_price: params["max_price"] || "",
       min_sqm: params["min_sqm"] || "",
@@ -246,7 +246,14 @@ defmodule PaianjenWeb.ListingLive.Index do
     params = []
     params = if filters.search != "", do: [{"search", filters.search} | params], else: params
     params = if filters.city != "", do: [{"city", filters.city} | params], else: params
-    params = if filters.district != "", do: [{"district", filters.district} | params], else: params
+
+    params =
+      if filters.district != [] do
+        Enum.map(filters.district, &{"district[]", &1}) ++ params
+      else
+        params
+      end
+
     params = if filters.min_price != "", do: [{"min_price", filters.min_price} | params], else: params
     params = if filters.max_price != "", do: [{"max_price", filters.max_price} | params], else: params
     params = if filters.min_sqm != "", do: [{"min_sqm", filters.min_sqm} | params], else: params
@@ -307,7 +314,7 @@ defmodule PaianjenWeb.ListingLive.Index do
     Map.merge(current, %{
       search: params["search"] || "",
       city: params["city"] || "",
-      district: params["district"] || "",
+      district: parse_district_param(params["district"]),
       min_price: params["min_price"] || "",
       max_price: params["max_price"] || "",
       min_sqm: params["min_sqm"] || "",
@@ -315,6 +322,19 @@ defmodule PaianjenWeb.ListingLive.Index do
       cursor: params["cursor"] || ""
     })
   end
+
+  # District can arrive as a single string (old links), a list (multiple select
+  # or repeated query params), or be absent. Normalize to a list of strings.
+  defp parse_district_param(nil), do: []
+  defp parse_district_param(""), do: []
+  defp parse_district_param(list) when is_list(list), do: Enum.reject(list, &(&1 in [nil, ""]))
+  defp parse_district_param(value), do: [value]
+
+  # Human-readable label for the district dropdown summary.
+  defp district_summary([]), do: "Toate cartierele"
+  defp district_summary([district]), do: district
+  defp district_summary(districts) when length(districts) <= 2, do: Enum.join(districts, ", ")
+  defp district_summary(districts), do: "#{length(districts)} cartiere selectate"
 
   defp parse_int(""), do: nil
   defp parse_int(nil), do: nil
@@ -336,13 +356,13 @@ defmodule PaianjenWeb.ListingLive.Index do
     [
       filters.search,
       filters.city,
-      filters.district,
       filters.min_price,
       filters.max_price,
       filters.min_sqm,
       filters.max_sqm
     ]
     |> Enum.count(&(&1 != ""))
+    |> Kernel.+(if filters.district != [], do: 1, else: 0)
     |> Kernel.+(if filters.with_parking, do: 1, else: 0)
     |> Kernel.+(if filters.with_commission, do: 1, else: 0)
     |> Kernel.+(if filters.include_without_images, do: 1, else: 0)
@@ -553,12 +573,31 @@ defmodule PaianjenWeb.ListingLive.Index do
 
       <div>
         <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1.5">Cartier</label>
-        <select name="district" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white">
-          <option value="">Toate</option>
-          <%= for district <- @districts do %>
-            <option value={district} selected={@filters.district == district}><%= district %></option>
-          <% end %>
-        </select>
+        <details class="district-dropdown relative">
+          <summary class="flex items-center justify-between gap-2 w-full px-3 py-2 border border-slate-200 rounded-lg bg-white cursor-pointer select-none list-none focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400">
+            <span class={"truncate text-sm #{if @filters.district == [], do: "text-slate-400", else: "text-slate-700 font-medium"}"}>
+              <%= district_summary(@filters.district) %>
+            </span>
+            <svg xmlns="http://www.w3.org/2000/svg" class="district-chevron w-4 h-4 text-slate-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+            </svg>
+          </summary>
+          <div class="district-panel absolute z-20 left-0 right-0 mt-1 max-h-60 overflow-y-auto border border-slate-200 rounded-lg bg-white shadow-lg">
+            <%= for district <- @districts do %>
+              <label class="flex items-center gap-2.5 px-3 py-2 cursor-pointer hover:bg-slate-50">
+                <input
+                  type="checkbox"
+                  name="district[]"
+                  value={district}
+                  checked={district in @filters.district}
+                  class="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                />
+                <span class="text-sm text-slate-700"><%= district %></span>
+              </label>
+            <% end %>
+          </div>
+        </details>
+        <p class="mt-1 text-[11px] text-slate-400">Alege unul sau mai multe cartiere</p>
       </div>
 
       <div>

@@ -24,3 +24,25 @@
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+
+/* Multi-select district dropdown (native <details>/<summary>) */
+.district-dropdown > summary {
+  list-style: none; /* hide the default disclosure triangle */
+}
+.district-dropdown > summary::-webkit-details-marker {
+  display: none; /* Safari/WebKit */
+}
+.district-dropdown > summary::before,
+.district-dropdown > summary::marker {
+  content: none;
+}
+.district-chevron {
+  transition: transform 0.2s ease;
+}
+.district-dropdown[open] > summary .district-chevron {
+  transform: rotate(180deg);
+}
+/* Make sure the open dropdown overlays the rest of the form */
+.district-dropdown[open] {
+  z-index: 30;
+}
