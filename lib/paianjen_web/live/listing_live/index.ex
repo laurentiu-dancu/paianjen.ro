@@ -331,7 +331,7 @@ defmodule PaianjenWeb.ListingLive.Index do
   defp parse_district_param(value), do: [value]
 
   # Human-readable label for the district dropdown summary.
-  defp district_summary([]), do: "Toate cartierele"
+  defp district_summary([]), do: "Toate"
   defp district_summary([district]), do: district
   defp district_summary(districts) when length(districts) <= 2, do: Enum.join(districts, ", ")
   defp district_summary(districts), do: "#{length(districts)} cartiere selectate"
@@ -575,29 +575,28 @@ defmodule PaianjenWeb.ListingLive.Index do
         <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1.5">Cartier</label>
         <details class="district-dropdown relative">
           <summary class="flex items-center justify-between gap-2 w-full px-3 py-2 border border-slate-200 rounded-lg bg-white cursor-pointer select-none list-none focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400">
-            <span class={"truncate text-sm #{if @filters.district == [], do: "text-slate-400", else: "text-slate-700 font-medium"}"}>
+            <span class="truncate text-sm text-slate-700">
               <%= district_summary(@filters.district) %>
             </span>
             <svg xmlns="http://www.w3.org/2000/svg" class="district-chevron w-4 h-4 text-slate-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
             </svg>
           </summary>
-          <div class="district-panel absolute z-20 left-0 right-0 mt-1 max-h-60 overflow-y-auto border border-slate-200 rounded-lg bg-white shadow-lg">
+          <div class="district-panel mt-1 max-h-60 overflow-y-auto overscroll-contain border border-slate-200 rounded-lg bg-white lg:absolute lg:left-0 lg:right-0 lg:top-full lg:z-20 lg:shadow-lg">
             <%= for district <- @districts do %>
-              <label class="flex items-center gap-2.5 px-3 py-2 cursor-pointer hover:bg-slate-50">
+              <label class="district-option flex items-center gap-3 px-3 py-2.5 min-h-[44px] cursor-pointer hover:bg-slate-50">
                 <input
                   type="checkbox"
                   name="district[]"
                   value={district}
                   checked={district in @filters.district}
-                  class="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                  class="accent-indigo-600 shrink-0"
                 />
-                <span class="text-sm text-slate-700"><%= district %></span>
+                <span class="text-sm text-slate-700 truncate"><%= district %></span>
               </label>
             <% end %>
           </div>
         </details>
-        <p class="mt-1 text-[11px] text-slate-400">Alege unul sau mai multe cartiere</p>
       </div>
 
       <div>

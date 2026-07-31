@@ -26,8 +26,14 @@
 }
 
 /* Multi-select district dropdown (native <details>/<summary>) */
+.district-dropdown {
+  /* no gray flash when tapping on iOS */
+  -webkit-tap-highlight-color: transparent;
+}
 .district-dropdown > summary {
   list-style: none; /* hide the default disclosure triangle */
+  -webkit-user-select: none;
+  user-select: none; /* no text selection on long-press/tap */
 }
 .district-dropdown > summary::-webkit-details-marker {
   display: none; /* Safari/WebKit */
@@ -45,4 +51,8 @@
 /* Make sure the open dropdown overlays the rest of the form */
 .district-dropdown[open] {
   z-index: 30;
+}
+/* Dropdown option rows */
+.district-option {
+  -webkit-tap-highlight-color: transparent;
 }
