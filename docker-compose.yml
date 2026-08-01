@@ -35,6 +35,7 @@ services:
       - ./config:/app/config:delegated
       - ./assets:/app/assets:delegated
       - ./data:/app/data:delegated
+      - ./test:/app/test:delegated
       # Named volumes for build artifacts so they persist across restarts
       - mix_build:/app/_build
       - mix_deps:/app/deps

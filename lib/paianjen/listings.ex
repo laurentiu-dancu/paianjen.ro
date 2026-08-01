@@ -557,28 +557,28 @@ defmodule Paianjen.Listings do
   defp groups_before_cursor(query, group, opts) do
     case Keyword.get(opts, :sort_by) do
       "last_price_drop" ->
+        # NOTE: these branches must express the OR *inside* a single `where`,
+        # not as `where(...) |> or_where(...)`. Ecto's `or_where` groups with
+        # ALL preceding wheres, generating `(base_filters AND A) OR B`, which
+        # lets the second branch escape the active/images filters and overcount.
         if is_nil(group.last_price_drop_at) do
           # Cursor has NULL last_price_drop_at (sorts last under NULLS LAST):
           # every group with a real drop sorts before it, plus NULL-drop groups
           # that tiebreak ahead of it.
-          query
-          |> where([g], not is_nil(g.last_price_drop_at))
-          |> or_where(
-            [g],
-            is_nil(g.last_price_drop_at) and
-              (g.earliest_first_seen > ^group.earliest_first_seen or
-                 (g.earliest_first_seen == ^group.earliest_first_seen and g.id > ^group.id))
+          where(query, [g],
+            not is_nil(g.last_price_drop_at) or
+              (is_nil(g.last_price_drop_at) and
+                 (g.earliest_first_seen > ^group.earliest_first_seen or
+                    (g.earliest_first_seen == ^group.earliest_first_seen and g.id < ^group.id)))
           )
         else
           # Cursor has a real drop: a greater drop date sorts before it, or an
           # equal drop date that tiebreaks ahead.
-          query
-          |> where([g], g.last_price_drop_at > ^group.last_price_drop_at)
-          |> or_where(
-            [g],
-            g.last_price_drop_at == ^group.last_price_drop_at and
-              (g.earliest_first_seen > ^group.earliest_first_seen or
-                 (g.earliest_first_seen == ^group.earliest_first_seen and g.id > ^group.id))
+          where(query, [g],
+            g.last_price_drop_at > ^group.last_price_drop_at or
+              (g.last_price_drop_at == ^group.last_price_drop_at and
+                 (g.earliest_first_seen > ^group.earliest_first_seen or
+                    (g.earliest_first_seen == ^group.earliest_first_seen and g.id < ^group.id)))
           )
         end
 
@@ -587,7 +587,7 @@ defmodule Paianjen.Listings do
           query,
           [g],
           g.earliest_first_seen > ^group.earliest_first_seen or
-            (g.earliest_first_seen == ^group.earliest_first_seen and g.id > ^group.id)
+            (g.earliest_first_seen == ^group.earliest_first_seen and g.id < ^group.id)
         )
     end
   end

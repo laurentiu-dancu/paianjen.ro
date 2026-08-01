@@ -21,6 +21,7 @@ defmodule PaianjenWeb.ListingLive.Index do
        groups: page.groups,
        total_count: page.total_count,
        page: page.page,
+       offset: offset,
        total_pages: page.total_pages,
        has_more: page.has_more,
        has_older: has_older,
@@ -52,6 +53,7 @@ defmodule PaianjenWeb.ListingLive.Index do
         groups: page.groups,
         total_count: page.total_count,
         page: 1,
+        offset: 0,
         total_pages: page.total_pages,
         has_more: page.has_more,
         cities: page.cities,
@@ -97,6 +99,7 @@ defmodule PaianjenWeb.ListingLive.Index do
         groups: page.groups,
         total_count: page.total_count,
         page: 1,
+        offset: 0,
         total_pages: page.total_pages,
         has_more: page.has_more,
         cities: page.cities,
@@ -120,6 +123,7 @@ defmodule PaianjenWeb.ListingLive.Index do
         groups: page.groups,
         total_count: page.total_count,
         page: 1,
+        offset: 0,
         total_pages: page.total_pages,
         has_more: page.has_more,
         has_older: false,
@@ -138,14 +142,21 @@ defmodule PaianjenWeb.ListingLive.Index do
   @impl true
   def handle_event("load_more", _params, socket) do
     if socket.assigns.has_more and !socket.assigns.loading do
+      socket = assign(socket, loading: true)
+      # Continue from the actual loaded offset. Deriving the next offset from
+      # `page` is wrong after a cursor-based mount (return from a detail page):
+      # the mount loads from the cursor position, which is not necessarily a
+      # multiple of page_size, so `(page - 1) * page_size` would overlap and
+      # duplicate already-visible groups.
+      next_offset = socket.assigns.offset + @page_size
       next_page = socket.assigns.page + 1
-      next_offset = (next_page - 1) * @page_size
       page = load_page(next_page, next_offset, socket.assigns.filters)
 
       {:noreply,
        assign(socket,
          groups: socket.assigns.groups ++ page.groups,
          page: next_page,
+         offset: next_offset,
          has_more: page.has_more,
          loading: false
        )}
