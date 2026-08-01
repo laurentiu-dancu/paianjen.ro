@@ -280,10 +280,12 @@ defmodule PaianjenWeb.ListingLive.Show do
                   <span class="w-3 h-1 rounded-full bg-slate-300 inline-block"></span>
                   Preț maxim
                 </span>
-                <span class="flex items-center gap-1.5">
-                  <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block"></span>
-                  Reducere de preț
-                </span>
+                <%= if price_chart.summary.has_drop do %>
+                  <span class="flex items-center gap-1.5">
+                    <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block"></span>
+                    Reducere de preț
+                  </span>
+                <% end %>
               </div>
             </div>
           <% end %>

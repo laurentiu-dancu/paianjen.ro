@@ -275,7 +275,10 @@ defmodule Paianjen.Listings do
         |> put_if_present(:max_surface, Enum.max(surfaces, fn -> nil end))
         |> put_if_present(:min_price_per_sqm, Enum.min(ppsqm, fn -> nil end))
         |> put_if_present(:max_price_per_sqm, Enum.max(ppsqm, fn -> nil end))
-        |> put_if_present(:earliest_first_seen, Enum.min(first_seens, fn -> nil end))
+        # NOTE: Enum.min/2 on DateTime structs is NOT chronological — structs
+        # are compared structurally (key order), so "day" is compared before
+        # "year" and the wrong date can win. Compare by epoch seconds instead.
+        |> put_if_present(:earliest_first_seen, Enum.min_by(first_seens, &DateTime.to_unix/1, fn -> nil end))
         |> then(fn a ->
           has_top = Enum.any?(listings_data, fn l ->
             l["floor"] != nil and l["total_floors"] != nil and l["floor"] == l["total_floors"]
@@ -289,11 +292,21 @@ defmodule Paianjen.Listings do
         end)
       end)
 
-      # Price history + last price drop come pre-computed from the export
+      # Price history + last price drop come pre-computed from the export.
+      # A group whose price never dropped has no real last_price_drop_at; we
+      # fall back to earliest_first_seen (the listing creation date) so every
+      # group still gets a sortable value in the "time since last price drop"
+      # order. We deliberately use the creation date, NOT the first snapshot's
+      # scraped_at: old listings that predate little-spider's scraping would
+      # otherwise look freshly "dropped" and wrongly interleave near the top.
+      last_drop =
+        parse_datetime(group_data["last_price_drop_at"]) ||
+          group_attrs[:earliest_first_seen]
+
       group_attrs =
         group_attrs
         |> put_if_present(:price_history, group_data["group_price_history"] || [])
-        |> put_if_present(:last_price_drop_at, parse_datetime(group_data["last_price_drop_at"]))
+        |> put_if_present(:last_price_drop_at, last_drop)
 
       {:ok, group} = upsert_group(group_attrs)
 

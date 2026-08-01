@@ -6,12 +6,13 @@ defmodule Paianjen.Listings.GroupPresenter do
 
   alias Paianjen.Listings.ListingGroup
   alias Paianjen.Listings.Listing
+  alias Paianjen.Listings.PriceHistoryChart
 
   defstruct [
     :id, :city, :district, :zone, :min_price, :max_price,
     :min_surface, :max_surface, :rooms, :floor, :total_floors, :year_built,
     :image_url, :parking_price, :days_on_market, :days_since_last_price_drop,
-    :last_price_drop_at, :active_listings,
+    :has_price_drop, :last_price_drop_at, :active_listings,
     :total_listings, :listings, :health_pct, :has_active_listings,
     :price_history,  # group-level price change timeline (from the export)
     :first_seen_at  # DateTime when the group was first seen (for showing time when days_on_market == 0)
@@ -39,8 +40,19 @@ defmodule Paianjen.Listings.GroupPresenter do
     days_on_market = days_since(earliest)
 
     # Days since the last price drop (0 when the group never had a price drop;
-    # the template gates on last_price_drop_at being non-nil)
+    # the template gates on has_price_drop being true)
     days_since_last_price_drop = days_since(group.last_price_drop_at)
+
+    # Whether the group ever ACTUALLY reduced its price. last_price_drop_at is
+    # now always populated (a fallback exists purely so new groups interleave
+    # in the "time since last drop" sort), so it can't tell us if a real
+    # reduction happened. Derive it from the price history instead — the same
+    # signal the show page's chart uses.
+    has_price_drop =
+      case PriceHistoryChart.build(group.price_history || []) do
+        nil -> false
+        chart -> chart.summary.has_drop
+      end
 
     # Health percentage
     health_pct = if total_listings > 0, do: (active_count / total_listings) * 100, else: 0
@@ -65,6 +77,7 @@ defmodule Paianjen.Listings.GroupPresenter do
       parking_price: canonical && canonical.parking_price,
       days_on_market: days_on_market,
       days_since_last_price_drop: days_since_last_price_drop,
+      has_price_drop: has_price_drop,
       last_price_drop_at: group.last_price_drop_at,
       active_listings: active_count,
       total_listings: total_listings,
