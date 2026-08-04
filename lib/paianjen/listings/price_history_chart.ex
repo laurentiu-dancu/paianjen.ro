@@ -12,31 +12,58 @@ defmodule Paianjen.Listings.PriceHistoryChart do
         ...
       ]
 
-  `build/1` returns a plain map of precomputed coordinates, SVG path strings,
-  axis ticks and a summary — ready to be consumed by the HEEx template — or
-  `nil` when there is nothing worth charting (empty / unparseable history).
+  `build/1` (and `build/2` with a `:desktop` / `:mobile` variant) returns a
+  plain map of precomputed coordinates, SVG path strings, axis ticks and a
+  summary — ready to be consumed by the HEEx template — or `nil` when there is
+  nothing worth charting (empty / unparseable history).
 
   The chart plots the group's minimum price as the main line, shades the
   min–max range band, and highlights price-drop points in green.
   """
 
-  # Chart geometry (SVG viewBox)
-  @width 800
-  @height 280
-  @left 64
-  @right 16
-  @top 16
-  @bottom 36
+  # Chart geometry (SVG viewBox). Two variants: a wide one for desktop and a
+  # narrower one for phones. Both are server-rendered and toggled via Tailwind
+  # (`hidden lg:block` / `lg:hidden`) so each can be tuned for its own scale.
+  @desktop_geometry %{
+    width: 800,
+    height: 300,
+    left: 64,
+    right: 16,
+    top: 16,
+    bottom: 36,
+    font_size: 10
+  }
 
-  @doc "Build chart data from a group's price_history list. Returns nil if empty."
-  def build(history) when is_list(history) do
+  @mobile_geometry %{
+    width: 400,
+    height: 300,
+    left: 48,
+    right: 12,
+    top: 16,
+    bottom: 36,
+    font_size: 13
+  }
+
+  # Max number of x-axis time labels before they get thinned out.
+  @max_time_labels 6
+
+  @doc """
+  Build chart data for a group's price_history list. Returns nil if empty.
+
+  `variant` selects the geometry: `:desktop` (wide) or `:mobile` (narrow,
+  phone-sized). Defaults to `:desktop`.
+  """
+  def build(history, variant \\ :desktop)
+
+  def build(history, variant)
+      when is_list(history) and variant in [:desktop, :mobile] do
     case parse_points(history) do
       [] -> nil
-      points -> build_chart(points)
+      points -> build_chart(points, variant)
     end
   end
 
-  def build(_), do: nil
+  def build(_history, _variant), do: nil
 
   # Normalizes the raw list of maps into sorted points with float prices,
   # deduping by date (last occurrence wins, matching the export's collapse).
@@ -70,7 +97,17 @@ defmodule Paianjen.Listings.PriceHistoryChart do
   defp number_or(n, _default) when is_number(n), do: n * 1.0
   defp number_or(_, default), do: default
 
-  defp build_chart(points) do
+  defp build_chart(points, variant) do
+    %{
+      width: width,
+      height: height,
+      left: left,
+      right: right,
+      top: top,
+      bottom: bottom,
+      font_size: font_size
+    } = geometry(variant)
+
     first_date = hd(points).date
     last_date = List.last(points).date
 
@@ -78,9 +115,12 @@ defmodule Paianjen.Listings.PriceHistoryChart do
     max_all = points |> Enum.map(& &1.max) |> Enum.max()
     {y_lo, y_hi} = y_domain(min_all, max_all)
 
-    plot_w = @width - @left - @right
-    plot_h = @height - @top - @bottom
+    plot_w = width - left - right
+    plot_h = height - top - bottom
     total_days = max(Date.diff(last_date, first_date), 1)
+
+    %{labels: x_labels, gridlines: gridlines} =
+      time_axis(first_date, last_date, total_days, plot_w, left)
 
     points =
       points
@@ -93,32 +133,44 @@ defmodule Paianjen.Listings.PriceHistoryChart do
           max: p.max,
           median: p.median,
           count: p.count,
-          x: @left + t * plot_w,
-          y_min: y_pos(p.min, y_lo, y_hi, plot_h),
-          y_max: y_pos(p.max, y_lo, y_hi, plot_h)
+          x: left + t * plot_w,
+          y_min: y_pos(p.min, y_lo, y_hi, plot_h, top),
+          y_max: y_pos(p.max, y_lo, y_hi, plot_h, top)
         }
       end)
       |> mark_drops()
 
     count = length(points)
+    has_range = Enum.any?(points, &(&1.max != &1.min))
+    # A band / max line is only meaningful when the min and max actually
+    # diverge AND there is more than one point to connect. Without this, a
+    # single-listing group (min == max everywhere) would draw a dashed max
+    # line exactly over the solid min line.
+    show_range = has_range and count > 1
 
     %{
-      width: @width,
-      height: @height,
-      left: @left,
-      right: @right,
-      top: @top,
-      bottom: @bottom,
+      width: width,
+      height: height,
+      left: left,
+      right: right,
+      top: top,
+      bottom: bottom,
+      font_size: font_size,
       points: points,
       min_line: line_path(points, :y_min),
-      max_line: if(count > 1, do: line_path(points, :y_max), else: ""),
-      band: if(count > 1, do: band_path(points), else: ""),
-      ticks: y_ticks(y_lo, y_hi, plot_h),
-      x_labels: x_labels(points),
+      max_line: if(show_range, do: line_path(points, :y_max), else: ""),
+      band: if(show_range, do: band_path(points), else: ""),
+      ticks: y_ticks(y_lo, y_hi, plot_h, top),
+      x_labels: x_labels,
+      gridlines: gridlines,
       summary: summarize(points),
-      has_range: Enum.any?(points, &(&1.max != &1.min))
+      has_range: has_range,
+      show_range: show_range
     }
   end
+
+  defp geometry(:desktop), do: @desktop_geometry
+  defp geometry(:mobile), do: @mobile_geometry
 
   # A point is a "drop" when the group's minimum price decreased vs the previous
   # change point.
@@ -149,8 +201,8 @@ defmodule Paianjen.Listings.PriceHistoryChart do
     end
   end
 
-  defp y_pos(value, y_lo, y_hi, plot_h) do
-    @top + (1 - (value - y_lo) / (y_hi - y_lo)) * plot_h
+  defp y_pos(value, y_lo, y_hi, plot_h, top) do
+    top + (1 - (value - y_lo) / (y_hi - y_lo)) * plot_h
   end
 
   defp line_path(points, key) do
@@ -180,7 +232,7 @@ defmodule Paianjen.Listings.PriceHistoryChart do
   end
 
   # Horizontal gridlines + y labels, using "nice" round steps.
-  defp y_ticks(y_lo, y_hi, plot_h) do
+  defp y_ticks(y_lo, y_hi, plot_h, top) do
     step = nice_step((y_hi - y_lo) / 4)
     start = ceil(y_lo / step) * step
 
@@ -188,7 +240,7 @@ defmodule Paianjen.Listings.PriceHistoryChart do
     |> Stream.iterate(&(&1 + step))
     |> Enum.take_while(&(&1 <= y_hi + step / 2))
     |> Enum.map(fn v ->
-      %{y: y_pos(v, y_lo, y_hi, plot_h), label: tick_label(v)}
+      %{y: y_pos(v, y_lo, y_hi, plot_h, top), label: tick_label(v)}
     end)
   end
 
@@ -231,21 +283,83 @@ defmodule Paianjen.Listings.PriceHistoryChart do
     |> String.reverse()
   end
 
-  # X-axis date labels: every date when few points, else ~5 evenly spaced.
-  defp x_labels(points) do
-    count = length(points)
+  # X axis: represents the passage of time at regular intervals. A vertical
+  # gridline + label is placed on the 1st of every month inside the range.
+  # When the range contains no month boundary (e.g. history shorter than a
+  # month), fall back to labelling the first and last dates.
+  defp time_axis(first_date, last_date, total_days, plot_w, left) do
+    case month_starts_between(first_date, last_date) do
+      [] ->
+        # No month boundary in range: label first & last dates. Their x
+        # positions must be floats — the template runs them through
+        # Float.round/2, which rejects integers.
+        %{
+          labels: [
+            %{date: first_date, x: left * 1.0, anchor: "start"},
+            %{date: last_date, x: (left + plot_w) * 1.0, anchor: "end"}
+          ],
+          gridlines: []
+        }
+
+      starts ->
+        gridlines =
+          Enum.map(starts, fn d ->
+            %{date: d, x: x_pos(d, first_date, total_days, plot_w, left)}
+          end)
+
+        labels = pick_month_labels(starts, first_date, total_days, plot_w, left)
+        %{labels: labels, gridlines: gridlines}
+    end
+  end
+
+  # All 1sts of the month that fall within [first_date, last_date], computed
+  # arithmetically (bounded by the real month span, never an unbounded stream).
+  # Range checks use Date.compare/2: `%Date{}` structs do NOT order
+  # chronologically with `<=` (Erlang term ordering compares the `day` field
+  # first), so a Stream.iterate + take_while version of this never terminated
+  # and OOM-crashed the VM.
+  defp month_starts_between(first_date, last_date) do
+    first_month = first_date.year * 12 + (first_date.month - 1)
+    last_month = last_date.year * 12 + (last_date.month - 1)
+
+    for month_index <- first_month..last_month do
+      %Date{year: div(month_index, 12), month: rem(month_index, 12) + 1, day: 1}
+    end
+    |> Enum.filter(
+      &(Date.compare(&1, first_date) != :lt and Date.compare(&1, last_date) != :gt)
+    )
+  end
+
+  # Label every month start when there are few, else thin them to ~6 evenly
+  # spaced (first and last always included).
+  defp pick_month_labels(starts, first_date, total_days, plot_w, left) do
+    count = length(starts)
 
     indices =
-      if count <= 6 do
+      if count <= @max_time_labels do
         Enum.to_list(0..(count - 1))
       else
-        step = (count - 1) / 4.0
-        0..4 |> Enum.map(&round(&1 * step)) |> Enum.uniq()
+        step = (count - 1) / (@max_time_labels - 1)
+        0..(@max_time_labels - 1) |> Enum.map(&round(&1 * step)) |> Enum.uniq()
       end
 
     for i <- indices do
-      p = Enum.at(points, i)
-      %{x: p.x, date: p.date}
+      d = Enum.at(starts, i)
+      x = x_pos(d, first_date, total_days, plot_w, left)
+      %{date: d, x: x, anchor: label_anchor(x, left, plot_w)}
+    end
+  end
+
+  defp x_pos(date, first_date, total_days, plot_w, left) do
+    left + Date.diff(date, first_date) / total_days * plot_w
+  end
+
+  # Anchor edge labels so they don't clip outside the viewBox.
+  defp label_anchor(x, left, plot_w) do
+    cond do
+      x - left < 30 -> "start"
+      left + plot_w - x < 30 -> "end"
+      true -> "middle"
     end
   end
 
@@ -256,8 +370,16 @@ defmodule Paianjen.Listings.PriceHistoryChart do
     drops = Enum.filter(points, & &1.is_drop)
     last_drop = List.last(drops)
 
+    # All-time max drawdown (initial → lowest). Drives the "has ever dropped"
+    # flag and the "last price drop" indicator on the listings cards.
     drop_abs = max(initial - lowest, 0)
     drop_pct = if initial > 0, do: drop_abs / initial * 100, else: 0
+
+    # Current reduction (initial → current). This is what the "Reducere" badge
+    # on the show page should display, so a price that dropped then recovered
+    # stops being labelled as reduced.
+    current_drop_abs = max(initial - current, 0)
+    current_drop_pct = if initial > 0, do: current_drop_abs / initial * 100, else: 0
 
     %{
       initial: initial,
@@ -266,6 +388,9 @@ defmodule Paianjen.Listings.PriceHistoryChart do
       drop_abs: drop_abs,
       drop_pct: drop_pct,
       has_drop: drop_abs > 0,
+      current_drop_abs: current_drop_abs,
+      current_drop_pct: current_drop_pct,
+      has_current_drop: current_drop_abs > 0,
       drop_count: length(drops),
       last_drop_date: last_drop && last_drop.date
     }

@@ -242,7 +242,8 @@ defmodule PaianjenWeb.ListingLive.Show do
 
           <%!-- Price history chart — inside the same container as the image slider, below the text --%>
           <%
-            price_chart = PriceHistoryChart.build(@group.price_history)
+            price_chart = PriceHistoryChart.build(@group.price_history, :desktop)
+            price_chart_mobile = PriceHistoryChart.build(@group.price_history, :mobile)
           %>
           <%= if price_chart do %>
             <div class="mt-6 md:mt-8 pt-6 md:pt-8 border-t border-slate-100">
@@ -252,9 +253,9 @@ defmodule PaianjenWeb.ListingLive.Show do
                   Istoricul prețului
                 </h2>
                 <div class="flex flex-wrap gap-2">
-                  <%= if price_chart.summary.has_drop do %>
+                  <%= if price_chart.summary.has_current_drop do %>
                     <span class="px-2.5 py-1 bg-emerald-50 text-emerald-700 text-xs rounded-full border border-emerald-100 font-medium">
-                      Reducere <%= format_price(price_chart.summary.drop_abs) %> € (−<%= format_pct(price_chart.summary.drop_pct) %>%)
+                      Reducere <%= format_price(price_chart.summary.current_drop_abs) %> € (−<%= format_pct(price_chart.summary.current_drop_pct) %>%)
                     </span>
                   <% end %>
                   <span class="px-2.5 py-1 bg-slate-50 text-slate-600 text-xs rounded-full border border-slate-100">
@@ -269,18 +270,25 @@ defmodule PaianjenWeb.ListingLive.Show do
                 </div>
               </div>
 
-              <.price_chart chart={price_chart} />
+              <div class="hidden lg:block">
+                <.price_chart chart={price_chart} />
+              </div>
+              <div class="lg:hidden w-full max-w-[480px] mx-auto">
+                <.price_chart chart={price_chart_mobile} />
+              </div>
 
               <div class="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-xs text-slate-400">
                 <span class="flex items-center gap-1.5">
                   <span class="w-3 h-1 rounded-full bg-indigo-500 inline-block"></span>
                   Preț minim
                 </span>
-                <span class="flex items-center gap-1.5">
-                  <span class="w-3 h-1 rounded-full bg-slate-300 inline-block"></span>
-                  Preț maxim
-                </span>
-                <%= if price_chart.summary.has_drop do %>
+                <%= if price_chart.show_range do %>
+                  <span class="flex items-center gap-1.5">
+                    <span class="w-3 h-1 rounded-full bg-slate-300 inline-block"></span>
+                    Preț maxim
+                  </span>
+                <% end %>
+                <%= if price_chart.summary.drop_count > 0 do %>
                   <span class="flex items-center gap-1.5">
                     <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block"></span>
                     Reducere de preț
@@ -517,10 +525,13 @@ defmodule PaianjenWeb.ListingLive.Show do
       >
         <%= for tick <- @chart.ticks do %>
           <line x1={@chart.left} x2={@chart.width - @chart.right} y1={Float.round(tick.y, 1)} y2={Float.round(tick.y, 1)} stroke="#e2e8f0" stroke-width="1" />
-          <text x={@chart.left - 8} y={Float.round(tick.y, 1) + 4} text-anchor="end" font-size="11" fill="#94a3b8"><%= tick.label %></text>
+          <text x={@chart.left - 8} y={Float.round(tick.y, 1) + 4} text-anchor="end" font-size={@chart.font_size} fill="#94a3b8"><%= tick.label %></text>
+        <% end %>
+        <%= for gl <- @chart.gridlines do %>
+          <line x1={Float.round(gl.x, 1)} x2={Float.round(gl.x, 1)} y1={@chart.top} y2={@chart.height - @chart.bottom} stroke="#e2e8f0" stroke-width="1" />
         <% end %>
         <%= for xl <- @chart.x_labels do %>
-          <text x={Float.round(xl.x, 1)} y={@chart.height - 10} text-anchor="middle" font-size="11" fill="#94a3b8"><%= chart_date_label(xl.date) %></text>
+          <text x={Float.round(xl.x, 1)} y={@chart.height - 10} text-anchor={xl.anchor} font-size={@chart.font_size} fill="#94a3b8"><%= chart_date_label(xl.date) %></text>
         <% end %>
         <path :if={@chart.band != ""} d={@chart.band} fill="#6366f1" opacity="0.08" />
         <path :if={@chart.max_line != ""} d={@chart.max_line} fill="none" stroke="#94a3b8" stroke-width="1" stroke-dasharray="4 4" opacity="0.6" />
@@ -529,7 +540,7 @@ defmodule PaianjenWeb.ListingLive.Show do
           <circle
             cx={Float.round(p.x, 1)}
             cy={Float.round(p.y_min, 1)}
-            r={if p.is_drop, do: 4.5, else: 3.5}
+            r={if p.is_drop, do: 5, else: 4}
             fill={chart_dot_color(p)}
             stroke="#ffffff"
             stroke-width="1.5"

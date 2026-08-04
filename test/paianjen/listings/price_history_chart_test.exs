@@ -66,8 +66,8 @@ defmodule Paianjen.Listings.PriceHistoryChartTest do
       chart = PriceHistoryChart.build(@history)
 
       y_values = Enum.map(chart.points, & &1.y_min) ++ Enum.map(chart.points, & &1.y_max)
-      assert Enum.min(y_values) >= 16
-      assert Enum.max(y_values) <= 244
+      assert Enum.min(y_values) >= chart.top
+      assert Enum.max(y_values) <= chart.top + (chart.height - chart.top - chart.bottom)
     end
 
     test "marks a point as a drop when the minimum price decreased" do
@@ -137,25 +137,48 @@ defmodule Paianjen.Listings.PriceHistoryChartTest do
   end
 
   describe "x_labels/ticks" do
-    test "labels every date when there are few points" do
+    test "labels the x axis at regular month intervals" do
+      # @history spans 2026-03-19 → 2026-05-14, so the 1sts of April and May
+      # fall inside the range and become the axis labels.
       chart = PriceHistoryChart.build(@history)
-      assert Enum.map(chart.x_labels, & &1.date) ==
-               Enum.map(chart.points, & &1.date)
+      assert Enum.map(chart.x_labels, & &1.date) == [~D[2026-04-01], ~D[2026-05-01]]
     end
 
-    test "caps x labels at ~5 for many points" do
+    test "adds a vertical gridline on each 1st of the month in range" do
+      chart = PriceHistoryChart.build(@history)
+      assert Enum.map(chart.gridlines, & &1.date) == [~D[2026-04-01], ~D[2026-05-01]]
+    end
+
+    test "falls back to first/last date labels when the range has no month boundary" do
+      same_month = [
+        %{"date" => "2026-01-02", "min_price" => 100_000, "max_price" => 100_000},
+        %{"date" => "2026-01-21", "min_price" => 95_000, "max_price" => 95_000}
+      ]
+
+      chart = PriceHistoryChart.build(same_month)
+      assert Enum.map(chart.x_labels, & &1.date) == [~D[2026-01-02], ~D[2026-01-21]]
+      assert chart.gridlines == []
+      # Fallback x positions must be floats — the template calls Float.round/2,
+      # which raises on integers (regression for single-month histories).
+      assert Enum.all?(chart.x_labels, &is_float(&1.x))
+    end
+
+    test "thins month labels when the range spans many months" do
       many =
-        for i <- 1..20 do
+        for i <- 0..23 do
+          d = Date.add(~D[2026-01-01], i * 30)
           %{
-            "date" => Date.to_iso8601(~D[2026-01-01] |> Date.add(i)),
-            "min_price" => 100_000 + i,
-            "max_price" => 100_000 + i
+            "date" => Date.to_iso8601(d),
+            "min_price" => 100_000 + i * 100,
+            "max_price" => 100_000 + i * 100
           }
         end
 
       chart = PriceHistoryChart.build(many)
-      assert length(chart.x_labels) <= 5
-      assert hd(chart.x_labels).date == ~D[2026-01-02]
+      assert length(chart.x_labels) <= 6
+      assert length(chart.gridlines) > 6
+      assert hd(chart.x_labels).date == ~D[2026-01-01]
+      assert List.last(chart.x_labels).date == ~D[2027-11-01]
     end
 
     test "produces at least one y tick with a label" do
