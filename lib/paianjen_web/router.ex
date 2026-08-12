@@ -16,6 +16,7 @@ defmodule PaianjenWeb.Router do
 
   pipeline :authenticated do
     plug PaianjenWeb.AuthPlug
+    plug PaianjenWeb.EnsureWishlistPlug
   end
 
   scope "/", PaianjenWeb do
@@ -31,6 +32,7 @@ defmodule PaianjenWeb.Router do
 
     live "/listari", ListingLive.Index, :index
     live "/listari/:id", ListingLive.Show, :show
+    live "/colectii/:id", WishlistLive.Show, :show
   end
 
   if Application.compile_env(:paianjen, :dev_routes) do

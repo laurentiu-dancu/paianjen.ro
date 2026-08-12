@@ -7,6 +7,8 @@ defmodule Paianjen.Listings do
   alias Paianjen.Listings.Listing
   alias Paianjen.Listings.ListingGroup
   alias Paianjen.Listings.SimilarGroup
+  alias Paianjen.Listings.Wishlist
+  alias Paianjen.Listings.WishlistItem
 
   # ---- Listing Groups ----
 
@@ -237,6 +239,108 @@ defmodule Paianjen.Listings do
     |> where([sg], sg.source_group_id == ^group_id)
     |> order_by([sg], desc: sg.similarity_score)
     |> Repo.all()
+  end
+
+  # ---- Wishlists (colectii) ----
+
+  # Upper bound on saved groups per wishlist, to keep DB growth bounded.
+  @max_wishlist_items 200
+
+  @doc """
+  Creates a wishlist row for `wishlist_id` (idempotent — `on_conflict: :nothing`).
+  """
+  def create_wishlist(wishlist_id \\ Ecto.UUID.generate()) do
+    %Wishlist{}
+    |> Wishlist.changeset(%{id: wishlist_id})
+    |> Repo.insert(on_conflict: :nothing)
+  end
+
+  @doc "Returns true when a wishlist with the given id exists."
+  def wishlist_exists?(wishlist_id) do
+    Repo.exists?(from w in Wishlist, where: w.id == ^wishlist_id)
+  end
+
+  @doc """
+  Adds or removes `group_id` from the wishlist (idempotent toggle).
+
+  The wishlist is always identified by the caller (the session), never by the
+  client. Returns `{:ok, :added}` / `{:ok, :removed}`,
+  `{:error, :wishlist_full}` when at the size cap, or `{:error, :not_found}`
+  when the wishlist row does not exist.
+  """
+  def toggle_wishlist_item(wishlist_id, group_id) do
+    if not wishlist_exists?(wishlist_id) do
+      {:error, :not_found}
+    else
+      case Repo.get_by(WishlistItem, wishlist_id: wishlist_id, group_id: group_id) do
+        nil ->
+          item_count =
+            Repo.aggregate(
+              from(wi in WishlistItem, where: wi.wishlist_id == ^wishlist_id),
+              :count,
+              :group_id
+            )
+
+          if item_count >= @max_wishlist_items do
+            {:error, :wishlist_full}
+          else
+            %WishlistItem{}
+            |> WishlistItem.changeset(%{
+              wishlist_id: wishlist_id,
+              group_id: group_id,
+              added_at: DateTime.utc_now()
+            })
+            |> Repo.insert(on_conflict: :nothing)
+            |> case do
+              {:ok, _item} -> {:ok, :added}
+              {:error, _changeset} -> {:error, :not_found}
+            end
+          end
+
+        item ->
+          {:ok, _} = Repo.delete(item)
+          {:ok, :removed}
+      end
+    end
+  end
+
+  @doc "Returns the group_ids currently saved in the wishlist."
+  def wishlist_group_ids(wishlist_id) do
+    WishlistItem
+    |> where([wi], wi.wishlist_id == ^wishlist_id)
+    |> select([wi], wi.group_id)
+    |> Repo.all()
+  end
+
+  @doc """
+  Returns the wishlist's entries (newest `added_at` first) with their group
+  preloaded, as `%{group: ListingGroup, added_at: DateTime}` maps.
+
+  Groups that no longer exist (deleted by the import pipeline's
+  `cleanup_orphans`) are skipped via the inner join, so the read path never
+  crashes on a stale reference.
+  """
+  def list_wishlist_entries(wishlist_id) do
+    query =
+      from(wi in WishlistItem,
+        where: wi.wishlist_id == ^wishlist_id,
+        join: g in ListingGroup,
+        on: g.id == wi.group_id,
+        order_by: [desc: wi.added_at, asc: g.id],
+        select: %{group: g, added_at: wi.added_at}
+      )
+
+    query
+    |> Repo.all()
+    |> then(fn entries ->
+      # Preload listings on the group structs directly (Repo.preload on a list
+      # of plain maps is not supported), then put them back in the entries.
+      groups = Repo.preload(Enum.map(entries, & &1.group), :listings)
+
+      entries
+      |> Enum.zip(groups)
+      |> Enum.map(fn {entry, group} -> %{entry | group: group} end)
+    end)
   end
 
   # ---- Import (bulk from JSONL) ----

@@ -4,20 +4,47 @@ defmodule PaianjenWeb.ListingLive.Show do
   alias Paianjen.Listings
   alias Paianjen.Listings.GroupPresenter
   alias Paianjen.Listings.PriceHistoryChart
+  import PaianjenWeb.ListingCard, only: [wishlist_heart: 1]
 
   @impl true
-  def mount(%{"id" => id} = params, _session, socket) do
+  def mount(%{"id" => id} = params, session, socket) do
+    wishlist_id = session["wishlist_id"]
     group = load_group(id)
     similar_groups = load_similar_groups(id)
 
     {:ok,
      assign(socket,
        page_title: (group && (group.zone || group.district)) || "Detalii",
+       wishlist_id: wishlist_id,
+       wishlist_ids: if(wishlist_id, do: Listings.wishlist_group_ids(wishlist_id), else: []),
        group: group,
        group_id: id,
        return_to: params["return_to"],
        similar_groups: similar_groups
      )}
+  end
+
+  @impl true
+  def handle_event("toggle_wishlist", %{"group_id" => group_id}, socket) do
+    # The group_id comes from the event; the wishlist written to is always the
+    # one from the session (never chosen by the client).
+    case socket.assigns.wishlist_id do
+      nil ->
+        {:noreply, socket}
+
+      wishlist_id ->
+        case Listings.toggle_wishlist_item(wishlist_id, group_id) do
+          {:ok, _added_or_removed} ->
+            {:noreply, assign(socket, wishlist_ids: Listings.wishlist_group_ids(wishlist_id))}
+
+          {:error, :wishlist_full} ->
+            {:noreply,
+             put_flash(socket, :error, "Colecția a atins limita de 200 de proprietăți.")}
+
+          _other ->
+            {:noreply, socket}
+        end
+    end
   end
 
   defp format_price(price) when is_float(price) do
@@ -127,6 +154,12 @@ defmodule PaianjenWeb.ListingLive.Show do
         <%!-- Property Overview --%>
         <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-3 md:p-8 mb-6 md:mb-8 relative overflow-hidden">
           <.spider_web days_on_market={@group.days_on_market} />
+
+          <.wishlist_heart
+            :if={@wishlist_id}
+            group_id={@group.id}
+            saved={@group.id in @wishlist_ids}
+          />
 
           <%
             images = @group.listings
@@ -395,7 +428,7 @@ defmodule PaianjenWeb.ListingLive.Show do
                         <% end %>
                       </div>
                       <%= if listing.url do %>
-                        <a href={listing.url} target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 font-medium">
+                        <a href={listing.url} target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer" class="inline-flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 font-medium">
                           <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
                           Vezi anunțul original
                         </a>

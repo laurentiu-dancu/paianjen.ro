@@ -3,6 +3,7 @@ defmodule PaianjenWeb.ListingLive.IndexTest do
 
   import Phoenix.LiveViewTest
 
+  alias Paianjen.Listings
   alias Paianjen.Listings.Listing
   alias Paianjen.Listings.ListingGroup
   alias Paianjen.Repo
@@ -83,6 +84,44 @@ defmodule PaianjenWeb.ListingLive.IndexTest do
       assert length(Enum.uniq(card_group_ids(html))) == 40
       assert groups_list_attr(html, "data-page") == "3"
       refute groups_list_has_attr?(html, "data-has-more")
+    end
+  end
+
+  describe "wishlist hearts" do
+    test "mounts hearts reflecting the session wishlist", %{conn: conn} do
+      wishlist_id = Ecto.UUID.generate()
+      Listings.create_wishlist(wishlist_id)
+      insert_groups!(5)
+      group = Repo.get!(ListingGroup, group_id(1))
+      Listings.toggle_wishlist_item(wishlist_id, group.id)
+
+      conn =
+        Plug.Test.init_test_session(conn, authenticated: true, wishlist_id: wishlist_id)
+
+      {:ok, _view, html} = live(conn, "/listari")
+
+      # The saved group's card shows a filled heart, the others an outline heart.
+      assert html =~ "Șterge din colecție"
+      assert html =~ "Adaugă în colecție"
+    end
+
+    test "toggle_wishlist writes only to the session's wishlist", %{conn: conn} do
+      wishlist_id = Ecto.UUID.generate()
+      other_wishlist_id = Ecto.UUID.generate()
+      Listings.create_wishlist(wishlist_id)
+      Listings.create_wishlist(other_wishlist_id)
+      insert_groups!(3)
+      group = Repo.get!(ListingGroup, group_id(1))
+
+      conn =
+        Plug.Test.init_test_session(conn, authenticated: true, wishlist_id: wishlist_id)
+
+      {:ok, view, _html} = live(conn, "/listari")
+
+      view |> element("button[phx-value-group_id='#{group.id}']") |> render_click()
+
+      assert Listings.wishlist_group_ids(wishlist_id) == [group.id]
+      assert Listings.wishlist_group_ids(other_wishlist_id) == []
     end
   end
 
