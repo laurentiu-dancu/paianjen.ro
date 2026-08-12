@@ -155,12 +155,6 @@ defmodule PaianjenWeb.ListingLive.Show do
         <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-3 md:p-8 mb-6 md:mb-8 relative overflow-hidden">
           <.spider_web days_on_market={@group.days_on_market} />
 
-          <.wishlist_heart
-            :if={@wishlist_id}
-            group_id={@group.id}
-            saved={@group.id in @wishlist_ids}
-          />
-
           <%
             images = @group.listings
             |> Enum.flat_map(fn l -> l.images || [] end)
@@ -172,6 +166,11 @@ defmodule PaianjenWeb.ListingLive.Show do
               <%!-- Image slider --%>
               <div class="md:w-[48%] flex-shrink-0">
                 <div id="image-slider" class="rounded-xl overflow-hidden relative bg-slate-100 aspect-[4/3]" phx-hook="ImageSlider" data-images={Jason.encode!(images)}>
+                  <.wishlist_heart
+                    :if={@wishlist_id}
+                    group_id={@group.id}
+                    saved={@group.id in @wishlist_ids}
+                  />
                   <div class="absolute inset-0 flex items-center justify-center">
                     <svg xmlns="http://www.w3.org/2000/svg" class="w-12 h-12 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
                       <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 21h16.5A2.25 2.25 0 0022.5 18.75V5.25A2.25 2.25 0 0020.25 3H3.75A2.25 2.25 0 001.5 5.25v13.5A2.25 2.25 0 003.75 21z" />

@@ -188,7 +188,7 @@ defmodule PaianjenWeb.ListingCard do
       phx-stop-propagation
       aria-label={if @saved, do: "Șterge din colecție", else: "Adaugă în colecție"}
       title={if @saved, do: "Șterge din colecție", else: "Adaugă în colecție"}
-      class="absolute top-2 right-2 z-20 flex items-center justify-center w-9 h-9 rounded-full bg-white/90 backdrop-blur shadow-md border border-slate-100 hover:scale-110 active:scale-95 transition-transform cursor-pointer"
+      class={"absolute bottom-2 left-2 z-20 flex items-center justify-center w-9 h-9 rounded-full bg-white/90 backdrop-blur shadow-md border border-slate-100 cursor-pointer transition-all hover:scale-110 active:scale-95 #{if @saved, do: "opacity-100", else: "opacity-40 hover:opacity-100"}"}
     >
       <svg
         xmlns="http://www.w3.org/2000/svg"
