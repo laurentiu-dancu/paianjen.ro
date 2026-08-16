@@ -70,8 +70,8 @@ defmodule Paianjen.Listings.GroupPresenter do
       min_surface: min_surface,
       max_surface: max_surface,
       rooms: canonical && canonical.rooms,
-      floor: canonical && canonical.floor,
-      total_floors: canonical && canonical.total_floors,
+      floor: (canonical && canonical.floor) || majority_value(listings, :floor),
+      total_floors: (canonical && canonical.total_floors) || majority_value(listings, :total_floors),
       year_built: canonical && get_in(canonical.features, ["construction_year"]),
       image_url: group.group_thumbnail || (canonical && canonical.thumbnail),
       parking_price: canonical && canonical.parking_price,
@@ -87,6 +87,23 @@ defmodule Paianjen.Listings.GroupPresenter do
       price_history: group.price_history || [],
       first_seen_at: earliest
     }
+  end
+
+  # The most common non-nil value for `field` across the group's listings,
+  # including inactive (delisted) ones — the canonical entry may lack info
+  # (e.g. total_floors) that its siblings have. When listings disagree the
+  # majority value wins; on a tie the minimum value wins. Returns nil when no
+  # listing provides a value.
+  defp majority_value(listings, field) do
+    listings
+    |> Enum.map(&Map.get(&1, field))
+    |> Enum.reject(&is_nil/1)
+    |> Enum.frequencies()
+    |> Enum.sort_by(fn {value, count} -> {-count, value} end)
+    |> case do
+      [{value, _count} | _] -> value
+      [] -> nil
+    end
   end
 
   defp from_listing(%Listing{} = l) do

@@ -23,6 +23,8 @@ defmodule Paianjen.Listings do
     |> filter_by_max_surface(opts)
     |> filter_by_parking(opts)
     |> filter_by_commission(opts)
+    |> filter_by_private_seller(opts)
+    |> filter_by_floor_type(opts)
     |> filter_by_images(opts)
     |> filter_by_search(opts)
     |> filter_by_sort(opts)
@@ -47,6 +49,8 @@ defmodule Paianjen.Listings do
       |> filter_by_max_surface(opts)
       |> filter_by_parking(opts)
       |> filter_by_commission(opts)
+      |> filter_by_private_seller(opts)
+      |> filter_by_floor_type(opts)
       |> filter_by_images(opts)
       |> filter_by_search(opts)
       |> filter_by_sort(opts)
@@ -98,6 +102,8 @@ defmodule Paianjen.Listings do
           |> filter_by_max_surface(opts)
           |> filter_by_parking(opts)
           |> filter_by_commission(opts)
+          |> filter_by_private_seller(opts)
+          |> filter_by_floor_type(opts)
           |> filter_by_images(opts)
           |> filter_by_search(opts)
           |> filter_by_sort(opts)
@@ -138,6 +144,8 @@ defmodule Paianjen.Listings do
           |> filter_by_max_surface(opts)
           |> filter_by_parking(opts)
           |> filter_by_commission(opts)
+          |> filter_by_private_seller(opts)
+          |> filter_by_floor_type(opts)
           |> filter_by_images(opts)
           |> filter_by_search(opts)
           |> filter_by_sort(opts)
@@ -612,6 +620,73 @@ defmodule Paianjen.Listings do
       where(query, [g], g.id in subquery(listing_ids))
     else
       query
+    end
+  end
+
+  defp filter_by_private_seller(query, opts) do
+    if Keyword.get(opts, :with_private_seller, false) do
+      # Find groups that have at least one ACTIVE listing from a private
+      # seller (proprietar). Delisted listings do NOT count — a group only
+      # matches if an actual active listing is sold directly by its owner.
+      listing_ids =
+        Listing
+        |> where([l], l.is_private_seller == true and l.is_delisted == false)
+        |> select([l], l.group_id)
+
+      where(query, [g], g.id in subquery(listing_ids))
+    else
+      query
+    end
+  end
+
+  defp filter_by_floor_type(query, opts) do
+    case Keyword.get(opts, :floor_type) do
+      nil ->
+        query
+
+      "" ->
+        query
+
+      "parter" ->
+        # Ground floor: floor == 0
+        listing_ids =
+          Listing
+          |> where([l], l.floor == 0)
+          |> select([l], l.group_id)
+
+        where(query, [g], g.id in subquery(listing_ids))
+
+      "intermediar" ->
+        # Middle floors: strictly above ground but below the top floor.
+        # NULL total_floors yields NULL comparisons, so it never matches here.
+        listing_ids =
+          Listing
+          |> where([l], l.floor > 0 and l.floor < l.total_floors)
+          |> select([l], l.group_id)
+
+        where(query, [g], g.id in subquery(listing_ids))
+
+      "final" ->
+        # Top floor: floor at or above total_floors.
+        # NULL total_floors yields NULL comparisons, so it never matches here.
+        listing_ids =
+          Listing
+          |> where([l], l.floor >= l.total_floors)
+          |> select([l], l.group_id)
+
+        where(query, [g], g.id in subquery(listing_ids))
+
+      "altul" ->
+        # Other / unknown: floor == -1, or floor/total_floors not known.
+        listing_ids =
+          Listing
+          |> where([l], l.floor == -1 or is_nil(l.floor) or is_nil(l.total_floors))
+          |> select([l], l.group_id)
+
+        where(query, [g], g.id in subquery(listing_ids))
+
+      _ ->
+        query
     end
   end
 

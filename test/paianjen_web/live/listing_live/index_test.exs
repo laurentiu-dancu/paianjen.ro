@@ -87,6 +87,38 @@ defmodule PaianjenWeb.ListingLive.IndexTest do
     end
   end
 
+  describe "floor selector" do
+    test "selecting an option sets floor_type without submitting the form", %{conn: conn} do
+      insert_groups!(1)
+
+      {:ok, view, _html} = live(authed_conn(conn), "/listari")
+
+      view |> element("button[phx-click=select_floor_parter]") |> render_click()
+
+      # If the click had auto-submitted the filter form, apply_filters would
+      # reset floor_type to "" — so the hidden input reflecting "parter" proves
+      # the toggle handler ran (no navigation).
+      assert render(view) =~ ~s(name="floor_type" value="parter")
+    end
+
+    test "one or none selectable at a time (radio behaviour)", %{conn: conn} do
+      insert_groups!(1)
+
+      {:ok, view, _html} = live(authed_conn(conn), "/listari")
+
+      view |> element("button[phx-click=select_floor_parter]") |> render_click()
+      assert render(view) =~ ~s(name="floor_type" value="parter")
+
+      # Selecting a different option moves the selection (mutually exclusive).
+      view |> element("button[phx-click=select_floor_final]") |> render_click()
+      assert render(view) =~ ~s(name="floor_type" value="final")
+
+      # Clicking the already-active option clears it back to none.
+      view |> element("button[phx-click=select_floor_final]") |> render_click()
+      assert render(view) =~ ~s(name="floor_type" value="")
+    end
+  end
+
   describe "wishlist hearts" do
     test "mounts hearts reflecting the session wishlist", %{conn: conn} do
       wishlist_id = Ecto.UUID.generate()

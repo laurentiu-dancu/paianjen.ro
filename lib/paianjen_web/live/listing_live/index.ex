@@ -45,7 +45,9 @@ defmodule PaianjenWeb.ListingLive.Index do
       |> Map.merge(%{
         with_parking: params["parking"] == "true",
         with_commission: params["commission"] == "true",
+        with_private_seller: params["private_seller"] == "true",
         include_without_images: params["include_without_images"] == "true",
+        floor_type: params["floor_type"] || "",
         cursor: ""
       })
 
@@ -85,6 +87,21 @@ defmodule PaianjenWeb.ListingLive.Index do
     filters = %{socket.assigns.filters | with_commission: !socket.assigns.filters.with_commission}
     {:noreply, assign(socket, filters: filters)}
   end
+
+  @impl true
+  def handle_event("toggle_private_seller", _params, socket) do
+    filters = %{socket.assigns.filters | with_private_seller: !socket.assigns.filters.with_private_seller}
+    {:noreply, assign(socket, filters: filters)}
+  end
+
+  @impl true
+  def handle_event("select_floor_parter", _params, socket), do: select_floor(socket, "parter")
+  @impl true
+  def handle_event("select_floor_intermediar", _params, socket), do: select_floor(socket, "intermediar")
+  @impl true
+  def handle_event("select_floor_final", _params, socket), do: select_floor(socket, "final")
+  @impl true
+  def handle_event("select_floor_altul", _params, socket), do: select_floor(socket, "altul")
 
   @impl true
   def handle_event("toggle_include_without_images", _params, socket) do
@@ -184,7 +201,9 @@ defmodule PaianjenWeb.ListingLive.Index do
         max_sqm: parse_float(socket.assigns.filters.max_sqm),
         with_parking: socket.assigns.filters.with_parking,
         with_commission: socket.assigns.filters.with_commission,
+        with_private_seller: socket.assigns.filters.with_private_seller,
         include_without_images: socket.assigns.filters.include_without_images,
+        floor_type: socket.assigns.filters.floor_type,
         search: socket.assigns.filters.search,
         sort_by: socket.assigns.filters.sort_by
       ]
@@ -242,6 +261,14 @@ defmodule PaianjenWeb.ListingLive.Index do
     end
   end
 
+  defp select_floor(socket, value) do
+    # One or none selectable at a time: selecting the already-active option
+    # clears the floor filter entirely.
+    floor_type = if socket.assigns.filters.floor_type == value, do: "", else: value
+    filters = %{socket.assigns.filters | floor_type: floor_type}
+    {:noreply, assign(socket, filters: filters)}
+  end
+
   defp default_filters do
     %{
       search: "",
@@ -253,7 +280,9 @@ defmodule PaianjenWeb.ListingLive.Index do
       max_sqm: "",
       with_parking: false,
       with_commission: false,
+      with_private_seller: false,
       include_without_images: false,
+      floor_type: "",
       cursor: "",
       sort_by: @default_sort
     }
@@ -270,7 +299,9 @@ defmodule PaianjenWeb.ListingLive.Index do
       max_sqm: params["max_sqm"] || "",
       with_parking: params["parking"] == "true",
       with_commission: params["commission"] == "true",
+      with_private_seller: params["private_seller"] == "true",
       include_without_images: params["include_without_images"] == "true",
+      floor_type: params["floor_type"] || "",
       cursor: params["cursor"] || "",
       sort_by: params["sort_by"] || @default_sort
     }
@@ -302,7 +333,9 @@ defmodule PaianjenWeb.ListingLive.Index do
           max_sqm: parse_float(filters.max_sqm),
           with_parking: filters.with_parking,
           with_commission: filters.with_commission,
+          with_private_seller: filters.with_private_seller,
           include_without_images: filters.include_without_images,
+          floor_type: filters.floor_type,
           search: filters.search,
           sort_by: filters.sort_by
         ]
@@ -329,7 +362,9 @@ defmodule PaianjenWeb.ListingLive.Index do
     params = if filters.max_sqm != "", do: [{"max_sqm", filters.max_sqm} | params], else: params
     params = if filters.with_parking, do: [{"parking", "true"} | params], else: params
     params = if filters.with_commission, do: [{"commission", "true"} | params], else: params
+    params = if filters.with_private_seller, do: [{"private_seller", "true"} | params], else: params
     params = if filters.include_without_images, do: [{"include_without_images", "true"} | params], else: params
+    params = if filters.floor_type != "", do: [{"floor_type", filters.floor_type} | params], else: params
     params = if filters.sort_by != @default_sort, do: [{"sort_by", filters.sort_by} | params], else: params
     params = if filters.cursor != "", do: [{"cursor", filters.cursor} | params], else: params
     params = [{"page", to_string(page)} | params]
@@ -352,7 +387,9 @@ defmodule PaianjenWeb.ListingLive.Index do
       max_sqm: parse_float(filters.max_sqm),
       with_parking: filters.with_parking,
       with_commission: filters.with_commission,
+      with_private_seller: filters.with_private_seller,
       include_without_images: filters.include_without_images,
+      floor_type: filters.floor_type,
       search: filters.search,
       sort_by: filters.sort_by
     ]
@@ -446,7 +483,9 @@ defmodule PaianjenWeb.ListingLive.Index do
     |> Kernel.+(if filters.district != [], do: 1, else: 0)
     |> Kernel.+(if filters.with_parking, do: 1, else: 0)
     |> Kernel.+(if filters.with_commission, do: 1, else: 0)
+    |> Kernel.+(if filters.with_private_seller, do: 1, else: 0)
     |> Kernel.+(if filters.include_without_images, do: 1, else: 0)
+    |> Kernel.+(if filters.floor_type != "", do: 1, else: 0)
   end
 
   @impl true
@@ -563,7 +602,9 @@ defmodule PaianjenWeb.ListingLive.Index do
       <%!-- Hidden inputs for toggle states so form submission includes them --%>
       <input type="hidden" name="parking" value={"#{@filters.with_parking}"} />
       <input type="hidden" name="commission" value={"#{@filters.with_commission}"} />
+      <input type="hidden" name="private_seller" value={"#{@filters.with_private_seller}"} />
       <input type="hidden" name="include_without_images" value={"#{@filters.include_without_images}"} />
+      <input type="hidden" name="floor_type" value={@filters.floor_type} />
 
       <div>
         <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1.5">Caută</label>
@@ -635,42 +676,106 @@ defmodule PaianjenWeb.ListingLive.Index do
         </div>
       </div>
 
-      <div class="space-y-3">
-        <label class="flex items-center gap-3 cursor-pointer group">
-          <button type="button" phx-click="toggle_parking" class={"w-10 h-5 rounded-full transition-colors flex-shrink-0 relative #{if @filters.with_parking, do: "bg-indigo-500", else: "bg-slate-200"}"}>
-            <span class={"absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform #{if @filters.with_parking, do: "translate-x-5", else: "translate-x-0"}"} />
+      <div>
+        <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1.5">Etaj</label>
+        <div class="grid grid-cols-4 gap-1.5">
+          <button
+            type="button"
+            title="Parter (etaj 0)"
+            phx-click="select_floor_parter"
+            class={"flex flex-col items-center justify-center gap-1 px-1 py-2 text-[11px] leading-none font-medium rounded-lg border transition-colors #{if @filters.floor_type == "parter", do: "bg-indigo-50 border-indigo-300 text-indigo-700", else: "bg-white border-slate-200 text-slate-600 hover:border-slate-300"}"}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M3 10l9-7 9 7v10a2 2 0 01-2 2H5a2 2 0 01-2-2V10z" />
+            </svg>
+            Parter
           </button>
-          <div class="flex items-center gap-1.5 text-sm text-slate-700 group-hover:text-slate-900">
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+
+          <button
+            type="button"
+            title="Etaj intermediar"
+            phx-click="select_floor_intermediar"
+            class={"flex flex-col items-center justify-center gap-1 px-1 py-2 text-[11px] leading-none font-medium rounded-lg border transition-colors #{if @filters.floor_type == "intermediar", do: "bg-indigo-50 border-indigo-300 text-indigo-700", else: "bg-white border-slate-200 text-slate-600 hover:border-slate-300"}"}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+            </svg>
+            Inter.
+          </button>
+
+          <button
+            type="button"
+            title="Ultimul etaj"
+            phx-click="select_floor_final"
+            class={"flex flex-col items-center justify-center gap-1 px-1 py-2 text-[11px] leading-none font-medium rounded-lg border transition-colors #{if @filters.floor_type == "final", do: "bg-indigo-50 border-indigo-300 text-indigo-700", else: "bg-white border-slate-200 text-slate-600 hover:border-slate-300"}"}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M5 10l7-7m0 0l7 7m-7-7v18" />
+            </svg>
+            Final
+          </button>
+
+          <button
+            type="button"
+            title="Altul (etaj necunoscut)"
+            phx-click="select_floor_altul"
+            class={"flex flex-col items-center justify-center gap-1 px-1 py-2 text-[11px] leading-none font-medium rounded-lg border transition-colors #{if @filters.floor_type == "altul", do: "bg-indigo-50 border-indigo-300 text-indigo-700", else: "bg-white border-slate-200 text-slate-600 hover:border-slate-300"}"}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            Altul
+          </button>
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1.5">Opțiuni</label>
+        <div class="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            phx-click="toggle_parking"
+            class={"flex items-center justify-center gap-1.5 px-2 py-2 text-xs font-medium rounded-lg border transition-colors #{if @filters.with_parking, do: "bg-indigo-50 border-indigo-300 text-indigo-700", else: "bg-white border-slate-200 text-slate-600 hover:border-slate-300"}"}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M8 7h8m-8 4h8m-4 4v4m-4-4h8a2 2 0 002-2V5a2 2 0 00-2-2H6a2 2 0 00-2 2v8a2 2 0 002 2z" />
             </svg>
-            Cu parcare
-          </div>
-        </label>
-
-        <label class="flex items-center gap-3 cursor-pointer group">
-          <button type="button" phx-click="toggle_commission" class={"w-10 h-5 rounded-full transition-colors flex-shrink-0 relative #{if @filters.with_commission, do: "bg-indigo-500", else: "bg-slate-200"}"}>
-            <span class={"absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform #{if @filters.with_commission, do: "translate-x-5", else: "translate-x-0"}"} />
+            Parcare
           </button>
-          <div class="flex items-center gap-1.5 text-sm text-slate-700 group-hover:text-slate-900">
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+
+          <button
+            type="button"
+            phx-click="toggle_commission"
+            class={"flex items-center justify-center gap-1.5 px-2 py-2 text-xs font-medium rounded-lg border transition-colors #{if @filters.with_commission, do: "bg-indigo-50 border-indigo-300 text-indigo-700", else: "bg-white border-slate-200 text-slate-600 hover:border-slate-300"}"}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
             Comision 0
-          </div>
-        </label>
-
-        <label class="flex items-center gap-3 cursor-pointer group">
-          <button type="button" phx-click="toggle_include_without_images" class={"w-10 h-5 rounded-full transition-colors flex-shrink-0 relative #{if @filters.include_without_images, do: "bg-indigo-500", else: "bg-slate-200"}"}>
-            <span class={"absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform #{if @filters.include_without_images, do: "translate-x-5", else: "translate-x-0"}"} />
           </button>
-          <div class="flex items-center gap-1.5 text-sm text-slate-700 group-hover:text-slate-900">
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+
+          <button
+            type="button"
+            phx-click="toggle_include_without_images"
+            class={"flex items-center justify-center gap-1.5 px-2 py-2 text-xs font-medium rounded-lg border transition-colors #{if @filters.include_without_images, do: "bg-indigo-50 border-indigo-300 text-indigo-700", else: "bg-white border-slate-200 text-slate-600 hover:border-slate-300"}"}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
             </svg>
-            Include fără imagini
-          </div>
-        </label>
+            Fără imagini
+          </button>
+
+          <button
+            type="button"
+            phx-click="toggle_private_seller"
+            class={"flex items-center justify-center gap-1.5 px-2 py-2 text-xs font-medium rounded-lg border transition-colors #{if @filters.with_private_seller, do: "bg-indigo-50 border-indigo-300 text-indigo-700", else: "bg-white border-slate-200 text-slate-600 hover:border-slate-300"}"}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+            </svg>
+            Proprietar
+          </button>
+        </div>
       </div>
 
       <button
