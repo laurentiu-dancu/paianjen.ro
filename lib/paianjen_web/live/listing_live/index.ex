@@ -678,12 +678,12 @@ defmodule PaianjenWeb.ListingLive.Index do
 
       <div>
         <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1.5">Etaj</label>
-        <div class="grid grid-cols-4 gap-1.5">
+        <div class="grid grid-cols-4 gap-1.5" style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px">
           <button
             type="button"
             title="Parter (etaj 0)"
             phx-click="select_floor_parter"
-            class={"flex flex-col items-center justify-center gap-1 px-1 py-2 text-[11px] leading-none font-medium rounded-lg border transition-colors #{if @filters.floor_type == "parter", do: "bg-indigo-50 border-indigo-300 text-indigo-700", else: "bg-white border-slate-200 text-slate-600 hover:border-slate-300"}"}
+            class={"flex flex-col min-w-0 items-center justify-center gap-1 px-1 py-2 text-[11px] leading-none font-medium rounded-lg border transition-colors #{if @filters.floor_type == "parter", do: "bg-indigo-50 border-indigo-300 text-indigo-700", else: "bg-white border-slate-200 text-slate-600 hover:border-slate-300"}"}
           >
             <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M3 10l9-7 9 7v10a2 2 0 01-2 2H5a2 2 0 01-2-2V10z" />
@@ -695,7 +695,7 @@ defmodule PaianjenWeb.ListingLive.Index do
             type="button"
             title="Etaj intermediar"
             phx-click="select_floor_intermediar"
-            class={"flex flex-col items-center justify-center gap-1 px-1 py-2 text-[11px] leading-none font-medium rounded-lg border transition-colors #{if @filters.floor_type == "intermediar", do: "bg-indigo-50 border-indigo-300 text-indigo-700", else: "bg-white border-slate-200 text-slate-600 hover:border-slate-300"}"}
+            class={"flex flex-col min-w-0 items-center justify-center gap-1 px-1 py-2 text-[11px] leading-none font-medium rounded-lg border transition-colors #{if @filters.floor_type == "intermediar", do: "bg-indigo-50 border-indigo-300 text-indigo-700", else: "bg-white border-slate-200 text-slate-600 hover:border-slate-300"}"}
           >
             <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
@@ -707,7 +707,7 @@ defmodule PaianjenWeb.ListingLive.Index do
             type="button"
             title="Ultimul etaj"
             phx-click="select_floor_final"
-            class={"flex flex-col items-center justify-center gap-1 px-1 py-2 text-[11px] leading-none font-medium rounded-lg border transition-colors #{if @filters.floor_type == "final", do: "bg-indigo-50 border-indigo-300 text-indigo-700", else: "bg-white border-slate-200 text-slate-600 hover:border-slate-300"}"}
+            class={"flex flex-col min-w-0 items-center justify-center gap-1 px-1 py-2 text-[11px] leading-none font-medium rounded-lg border transition-colors #{if @filters.floor_type == "final", do: "bg-indigo-50 border-indigo-300 text-indigo-700", else: "bg-white border-slate-200 text-slate-600 hover:border-slate-300"}"}
           >
             <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M5 10l7-7m0 0l7 7m-7-7v18" />
@@ -719,7 +719,7 @@ defmodule PaianjenWeb.ListingLive.Index do
             type="button"
             title="Altul (etaj necunoscut)"
             phx-click="select_floor_altul"
-            class={"flex flex-col items-center justify-center gap-1 px-1 py-2 text-[11px] leading-none font-medium rounded-lg border transition-colors #{if @filters.floor_type == "altul", do: "bg-indigo-50 border-indigo-300 text-indigo-700", else: "bg-white border-slate-200 text-slate-600 hover:border-slate-300"}"}
+            class={"flex flex-col min-w-0 items-center justify-center gap-1 px-1 py-2 text-[11px] leading-none font-medium rounded-lg border transition-colors #{if @filters.floor_type == "altul", do: "bg-indigo-50 border-indigo-300 text-indigo-700", else: "bg-white border-slate-200 text-slate-600 hover:border-slate-300"}"}
           >
             <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
