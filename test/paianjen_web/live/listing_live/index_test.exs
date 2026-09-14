@@ -145,6 +145,29 @@ defmodule PaianjenWeb.ListingLive.IndexTest do
         ~p"/listari?page=1&floor_include%5B%5D=parter&floor_include%5B%5D=final&floor_exclude%5B%5D=altul"
       )
     end
+
+    test "editable fields are ignored by the patcher so toggles don't reset them", %{
+      conn: conn
+    } do
+      insert_groups!(1)
+
+      {:ok, view, _html} = live(authed_conn(conn), "/listari")
+
+      # The user-editable fields (search/city/district/price/sqm) live inside an
+      # ignored subtree, so a floor/option toggle re-render can't wipe out
+      # uncommitted input.
+      fields = view |> element("form[phx-submit=apply_filters] div#filter-panel-fields")
+      fields_html = render(fields)
+      assert fields_html =~ ~s(phx-update="ignore")
+      assert fields_html =~ ~s(name="search")
+      assert fields_html =~ ~s(name="min_price")
+
+      # The toggle controls themselves stay OUTSIDE the ignored subtree so their
+      # tri-state highlight can still be patched after a click.
+      refute fields_html =~ "toggle_floor"
+      refute fields_html =~ "toggle_parking"
+      refute fields_html =~ "toggle_commission"
+    end
   end
 
   describe "wishlist hearts" do

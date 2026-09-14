@@ -652,6 +652,9 @@ defmodule PaianjenWeb.ListingLive.Index do
       <input type="hidden" name="private_seller" value={"#{@filters.with_private_seller}"} />
       <input type="hidden" name="include_without_images" value={"#{@filters.include_without_images}"} />
 
+      <%!-- fields below are user-editable; keep the patcher out so toggling a
+      floor/option button doesn't reset uncommitted input --%>
+      <div id="filter-panel-fields" class="space-y-6" phx-update="ignore">
       <div>
         <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1.5">Caută</label>
         <div class="relative">
@@ -720,6 +723,7 @@ defmodule PaianjenWeb.ListingLive.Index do
           <input type="number" name="min_sqm" value={@filters.min_sqm} placeholder="Min" class="w-1/2 px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white" />
           <input type="number" name="max_sqm" value={@filters.max_sqm} placeholder="Max" class="w-1/2 px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white" />
         </div>
+      </div>
       </div>
 
       <div>
