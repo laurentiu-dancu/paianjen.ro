@@ -141,7 +141,7 @@ defmodule PaianjenWeb.ListingCard do
                 <%= if @group.has_price_drop do %>
                   <span class="flex items-center gap-1 text-emerald-600" title="Ultima reducere de preț">
                     <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M3 17l6-6 4 4 8-8m0 0h-5m5 0v5" />
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M3 7l6 6 4-4 8 8m0 0h-5m5 0v-5" />
                     </svg>
                     <%= drop_label(@group.days_since_last_price_drop, @group.last_price_drop_at) %>
                   </span>
