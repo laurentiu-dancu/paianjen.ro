@@ -639,53 +639,109 @@ defmodule Paianjen.Listings do
     end
   end
 
+  # The four floor buckets are mutually exclusive and cover every listing, so a
+  # listing's floor counts towards exactly one bucket. This matters for the
+  # negative (exclude) majority math below: overlapping buckets would inflate
+  # counts and wrongly trip the >= 50% threshold.
+  #
+  #   parter      floor == 0
+  #   intermediar floor > 0, total known, floor <  total
+  #   final       floor > 0, total known, floor >= total
+  #   altul       everything else (unknown floor, floor < 0, or unknown total)
+  defp floor_bucket_condition("parter"), do: dynamic([l], l.floor == 0)
+
+  defp floor_bucket_condition("intermediar"),
+    do: dynamic([l], l.floor > 0 and not is_nil(l.total_floors) and l.floor < l.total_floors)
+
+  defp floor_bucket_condition("final"),
+    do: dynamic([l], l.floor > 0 and not is_nil(l.total_floors) and l.floor >= l.total_floors)
+
+  defp floor_bucket_condition("altul"),
+    do: dynamic([l], is_nil(l.floor) or l.floor < 0 or (l.floor > 0 and is_nil(l.total_floors)))
+
+  # Same buckets as aggregate predicates: TRUE when at least half (>= 50%) of
+  # the group's listings fall in that bucket. Integer math (count * 2 >= total)
+  # avoids float rounding.
+  defp floor_majority_condition("parter"),
+    do: dynamic([l], fragment("SUM(CASE WHEN floor = 0 THEN 1 ELSE 0 END) * 2 >= COUNT(*)"))
+
+  defp floor_majority_condition("intermediar"),
+    do:
+      dynamic(
+        [l],
+        fragment(
+          "SUM(CASE WHEN floor > 0 AND total_floors IS NOT NULL AND floor < total_floors THEN 1 ELSE 0 END) * 2 >= COUNT(*)"
+        )
+      )
+
+  defp floor_majority_condition("final"),
+    do:
+      dynamic(
+        [l],
+        fragment(
+          "SUM(CASE WHEN floor > 0 AND total_floors IS NOT NULL AND floor >= total_floors THEN 1 ELSE 0 END) * 2 >= COUNT(*)"
+        )
+      )
+
+  defp floor_majority_condition("altul"),
+    do:
+      dynamic(
+        [l],
+        fragment(
+          "SUM(CASE WHEN floor IS NULL OR floor < 0 OR (floor > 0 AND total_floors IS NULL) THEN 1 ELSE 0 END) * 2 >= COUNT(*)"
+        )
+      )
+
+  defp normalize_floor_list(list) when is_list(list) do
+    list
+    |> Enum.filter(&(&1 in ["parter", "intermediar", "final", "altul"]))
+    |> Enum.uniq()
+  end
+
+  defp normalize_floor_list(_), do: []
+
+  # Floor filter — tri-state per bucket, staged on the client and applied here.
+  #
+  #   * If any POSITIVE (include) bucket is set it wins and negatives are
+  #     ignored: show groups with AT LEAST ONE listing in any included bucket.
+  #   * Otherwise, if only NEGATIVE (exclude) buckets are set: hide groups
+  #     where, for ANY excluded bucket, at least half of the group's listings
+  #     fall in that bucket.
+  #   * Counting runs over ALL listings (active + delisted) — more data tracks
+  #     the apartment's real floor better than only the currently-active rows.
   defp filter_by_floor_type(query, opts) do
-    case Keyword.get(opts, :floor_type) do
-      nil ->
-        query
+    include = normalize_floor_list(Keyword.get(opts, :floor_include, []))
+    exclude = normalize_floor_list(Keyword.get(opts, :floor_exclude, []))
 
-      "" ->
-        query
+    cond do
+      include != [] ->
+        condition =
+          include
+          |> Enum.map(&floor_bucket_condition/1)
+          |> Enum.reduce(fn cond, acc -> dynamic([l], ^acc or ^cond) end)
 
-      "parter" ->
-        # Ground floor: floor == 0
         listing_ids =
           Listing
-          |> where([l], l.floor == 0)
+          |> where(^condition)
           |> select([l], l.group_id)
 
         where(query, [g], g.id in subquery(listing_ids))
 
-      "intermediar" ->
-        # Middle floors: strictly above ground but below the top floor.
-        # NULL total_floors yields NULL comparisons, so it never matches here.
-        listing_ids =
+      exclude != [] ->
+        condition =
+          exclude
+          |> Enum.map(&floor_majority_condition/1)
+          |> Enum.reduce(fn cond, acc -> dynamic([l], ^acc or ^cond) end)
+
+        majority_group_ids =
           Listing
-          |> where([l], l.floor > 0 and l.floor < l.total_floors)
+          |> group_by([l], l.group_id)
+          |> having(^condition)
           |> select([l], l.group_id)
 
-        where(query, [g], g.id in subquery(listing_ids))
+        where(query, [g], g.id not in subquery(majority_group_ids))
 
-      "final" ->
-        # Top floor: floor at or above total_floors.
-        # NULL total_floors yields NULL comparisons, so it never matches here.
-        listing_ids =
-          Listing
-          |> where([l], l.floor >= l.total_floors)
-          |> select([l], l.group_id)
-
-        where(query, [g], g.id in subquery(listing_ids))
-
-      "altul" ->
-        # Other / unknown: floor == -1, or floor/total_floors not known.
-        listing_ids =
-          Listing
-          |> where([l], l.floor == -1 or is_nil(l.floor) or is_nil(l.total_floors))
-          |> select([l], l.group_id)
-
-        where(query, [g], g.id in subquery(listing_ids))
-
-      _ ->
+      true ->
         query
     end
   end

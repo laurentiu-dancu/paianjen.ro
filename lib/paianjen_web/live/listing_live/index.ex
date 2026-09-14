@@ -7,6 +7,7 @@ defmodule PaianjenWeb.ListingLive.Index do
 
   @page_size 20
   @default_sort "time_on_market"
+  @floor_values ["parter", "intermediar", "final", "altul"]
 
   @impl true
   def mount(params, session, socket) do
@@ -47,7 +48,6 @@ defmodule PaianjenWeb.ListingLive.Index do
         with_commission: params["commission"] == "true",
         with_private_seller: params["private_seller"] == "true",
         include_without_images: params["include_without_images"] == "true",
-        floor_type: params["floor_type"] || "",
         cursor: ""
       })
 
@@ -95,13 +95,17 @@ defmodule PaianjenWeb.ListingLive.Index do
   end
 
   @impl true
-  def handle_event("select_floor_parter", _params, socket), do: select_floor(socket, "parter")
-  @impl true
-  def handle_event("select_floor_intermediar", _params, socket), do: select_floor(socket, "intermediar")
-  @impl true
-  def handle_event("select_floor_final", _params, socket), do: select_floor(socket, "final")
-  @impl true
-  def handle_event("select_floor_altul", _params, socket), do: select_floor(socket, "altul")
+  def handle_event("toggle_floor", %{"floor" => value}, socket) do
+    # NOTE: the value must travel under a key OTHER than `value`. LiveView's
+    # client-side extractMeta always sets meta.value = el.value, and a <button>
+    # element's native .value is the empty string — so phx-value-value=... gets
+    # clobbered to "" before it reaches the server.
+    if value in @floor_values do
+      {:noreply, assign(socket, filters: cycle_floor(socket.assigns.filters, value))}
+    else
+      {:noreply, socket}
+    end
+  end
 
   @impl true
   def handle_event("toggle_include_without_images", _params, socket) do
@@ -203,7 +207,8 @@ defmodule PaianjenWeb.ListingLive.Index do
         with_commission: socket.assigns.filters.with_commission,
         with_private_seller: socket.assigns.filters.with_private_seller,
         include_without_images: socket.assigns.filters.include_without_images,
-        floor_type: socket.assigns.filters.floor_type,
+        floor_include: socket.assigns.filters.floor_include,
+        floor_exclude: socket.assigns.filters.floor_exclude,
         search: socket.assigns.filters.search,
         sort_by: socket.assigns.filters.sort_by
       ]
@@ -261,13 +266,37 @@ defmodule PaianjenWeb.ListingLive.Index do
     end
   end
 
-  defp select_floor(socket, value) do
-    # One or none selectable at a time: selecting the already-active option
-    # clears the floor filter entirely.
-    floor_type = if socket.assigns.filters.floor_type == value, do: "", else: value
-    filters = %{socket.assigns.filters | floor_type: floor_type}
-    {:noreply, assign(socket, filters: filters)}
+  # Tri-state floor buttons: neutral → include (indigo) → exclude (red) →
+  # neutral. Each click advances one bucket through those three states.
+  defp cycle_floor(filters, value) do
+    cond do
+      value in filters.floor_include ->
+        %{
+          filters
+          | floor_include: List.delete(filters.floor_include, value),
+            floor_exclude: Enum.uniq(filters.floor_exclude ++ [value])
+        }
+
+      value in filters.floor_exclude ->
+        %{filters | floor_exclude: List.delete(filters.floor_exclude, value)}
+
+      true ->
+        %{filters | floor_include: Enum.uniq(filters.floor_include ++ [value])}
+    end
   end
+
+  # Which visual state a floor button is in, derived from the filter lists.
+  defp floor_state(filters, value) do
+    cond do
+      value in filters.floor_include -> :positive
+      value in filters.floor_exclude -> :negative
+      true -> :neutral
+    end
+  end
+
+  defp floor_button_class(:positive), do: "bg-indigo-50 border-indigo-300 text-indigo-700"
+  defp floor_button_class(:negative), do: "bg-red-50 border-red-300 text-red-700"
+  defp floor_button_class(:neutral), do: "bg-white border-slate-200 text-slate-600 hover:border-slate-300"
 
   defp default_filters do
     %{
@@ -282,7 +311,8 @@ defmodule PaianjenWeb.ListingLive.Index do
       with_commission: false,
       with_private_seller: false,
       include_without_images: false,
-      floor_type: "",
+      floor_include: [],
+      floor_exclude: [],
       cursor: "",
       sort_by: @default_sort
     }
@@ -301,7 +331,8 @@ defmodule PaianjenWeb.ListingLive.Index do
       with_commission: params["commission"] == "true",
       with_private_seller: params["private_seller"] == "true",
       include_without_images: params["include_without_images"] == "true",
-      floor_type: params["floor_type"] || "",
+      floor_include: parse_floor_list(params["floor_include"]),
+      floor_exclude: parse_floor_list(params["floor_exclude"]),
       cursor: params["cursor"] || "",
       sort_by: params["sort_by"] || @default_sort
     }
@@ -335,7 +366,8 @@ defmodule PaianjenWeb.ListingLive.Index do
           with_commission: filters.with_commission,
           with_private_seller: filters.with_private_seller,
           include_without_images: filters.include_without_images,
-          floor_type: filters.floor_type,
+          floor_include: filters.floor_include,
+          floor_exclude: filters.floor_exclude,
           search: filters.search,
           sort_by: filters.sort_by
         ]
@@ -364,7 +396,11 @@ defmodule PaianjenWeb.ListingLive.Index do
     params = if filters.with_commission, do: [{"commission", "true"} | params], else: params
     params = if filters.with_private_seller, do: [{"private_seller", "true"} | params], else: params
     params = if filters.include_without_images, do: [{"include_without_images", "true"} | params], else: params
-    params = if filters.floor_type != "", do: [{"floor_type", filters.floor_type} | params], else: params
+
+    params =
+      Enum.map(filters.floor_include, &{"floor_include[]", &1}) ++
+        Enum.map(filters.floor_exclude, &{"floor_exclude[]", &1}) ++ params
+
     params = if filters.sort_by != @default_sort, do: [{"sort_by", filters.sort_by} | params], else: params
     params = if filters.cursor != "", do: [{"cursor", filters.cursor} | params], else: params
     params = [{"page", to_string(page)} | params]
@@ -389,7 +425,8 @@ defmodule PaianjenWeb.ListingLive.Index do
       with_commission: filters.with_commission,
       with_private_seller: filters.with_private_seller,
       include_without_images: filters.include_without_images,
-      floor_type: filters.floor_type,
+      floor_include: filters.floor_include,
+      floor_exclude: filters.floor_exclude,
       search: filters.search,
       sort_by: filters.sort_by
     ]
@@ -448,6 +485,16 @@ defmodule PaianjenWeb.ListingLive.Index do
   defp parse_district_param(list) when is_list(list), do: Enum.reject(list, &(&1 in [nil, ""]))
   defp parse_district_param(value), do: [value]
 
+  # Floor include/exclude arrive as repeated `floor_include[]=...` params (a
+  # list), a single value, or nothing. Keep only known buckets.
+  defp parse_floor_list(nil), do: []
+  defp parse_floor_list(""), do: []
+
+  defp parse_floor_list(list) when is_list(list),
+    do: list |> Enum.filter(&(&1 in @floor_values)) |> Enum.uniq()
+
+  defp parse_floor_list(value), do: if(value in @floor_values, do: [value], else: [])
+
   # Human-readable label for the district dropdown summary.
   defp district_summary([]), do: "Toate"
   defp district_summary([district]), do: district
@@ -485,7 +532,7 @@ defmodule PaianjenWeb.ListingLive.Index do
     |> Kernel.+(if filters.with_commission, do: 1, else: 0)
     |> Kernel.+(if filters.with_private_seller, do: 1, else: 0)
     |> Kernel.+(if filters.include_without_images, do: 1, else: 0)
-    |> Kernel.+(if filters.floor_type != "", do: 1, else: 0)
+    |> Kernel.+(if filters.floor_include != [] or filters.floor_exclude != [], do: 1, else: 0)
   end
 
   @impl true
@@ -604,7 +651,6 @@ defmodule PaianjenWeb.ListingLive.Index do
       <input type="hidden" name="commission" value={"#{@filters.with_commission}"} />
       <input type="hidden" name="private_seller" value={"#{@filters.with_private_seller}"} />
       <input type="hidden" name="include_without_images" value={"#{@filters.include_without_images}"} />
-      <input type="hidden" name="floor_type" value={@filters.floor_type} />
 
       <div>
         <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1.5">Caută</label>
@@ -681,9 +727,10 @@ defmodule PaianjenWeb.ListingLive.Index do
         <div class="grid grid-cols-4 gap-1.5" style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px">
           <button
             type="button"
-            title="Parter (etaj 0)"
-            phx-click="select_floor_parter"
-            class={"flex flex-col min-w-0 items-center justify-center gap-1 px-1 py-2 text-[11px] leading-none font-medium rounded-lg border transition-colors #{if @filters.floor_type == "parter", do: "bg-indigo-50 border-indigo-300 text-indigo-700", else: "bg-white border-slate-200 text-slate-600 hover:border-slate-300"}"}
+            title="Parter"
+            phx-click="toggle_floor"
+            phx-value-floor="parter"
+            class={"flex flex-col min-w-0 items-center justify-center gap-1 px-1 py-2 text-[11px] leading-none font-medium rounded-lg border transition-colors #{floor_button_class(floor_state(@filters, "parter"))}"}
           >
             <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M3 10l9-7 9 7v10a2 2 0 01-2 2H5a2 2 0 01-2-2V10z" />
@@ -694,8 +741,9 @@ defmodule PaianjenWeb.ListingLive.Index do
           <button
             type="button"
             title="Etaj intermediar"
-            phx-click="select_floor_intermediar"
-            class={"flex flex-col min-w-0 items-center justify-center gap-1 px-1 py-2 text-[11px] leading-none font-medium rounded-lg border transition-colors #{if @filters.floor_type == "intermediar", do: "bg-indigo-50 border-indigo-300 text-indigo-700", else: "bg-white border-slate-200 text-slate-600 hover:border-slate-300"}"}
+            phx-click="toggle_floor"
+            phx-value-floor="intermediar"
+            class={"flex flex-col min-w-0 items-center justify-center gap-1 px-1 py-2 text-[11px] leading-none font-medium rounded-lg border transition-colors #{floor_button_class(floor_state(@filters, "intermediar"))}"}
           >
             <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
@@ -706,20 +754,22 @@ defmodule PaianjenWeb.ListingLive.Index do
           <button
             type="button"
             title="Ultimul etaj"
-            phx-click="select_floor_final"
-            class={"flex flex-col min-w-0 items-center justify-center gap-1 px-1 py-2 text-[11px] leading-none font-medium rounded-lg border transition-colors #{if @filters.floor_type == "final", do: "bg-indigo-50 border-indigo-300 text-indigo-700", else: "bg-white border-slate-200 text-slate-600 hover:border-slate-300"}"}
+            phx-click="toggle_floor"
+            phx-value-floor="final"
+            class={"flex flex-col min-w-0 items-center justify-center gap-1 px-1 py-2 text-[11px] leading-none font-medium rounded-lg border transition-colors #{floor_button_class(floor_state(@filters, "final"))}"}
           >
             <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M5 10l7-7m0 0l7 7m-7-7v18" />
             </svg>
-            Ultim.
+            Ultimul
           </button>
 
           <button
             type="button"
             title="Altul (etaj necunoscut)"
-            phx-click="select_floor_altul"
-            class={"flex flex-col min-w-0 items-center justify-center gap-1 px-1 py-2 text-[11px] leading-none font-medium rounded-lg border transition-colors #{if @filters.floor_type == "altul", do: "bg-indigo-50 border-indigo-300 text-indigo-700", else: "bg-white border-slate-200 text-slate-600 hover:border-slate-300"}"}
+            phx-click="toggle_floor"
+            phx-value-floor="altul"
+            class={"flex flex-col min-w-0 items-center justify-center gap-1 px-1 py-2 text-[11px] leading-none font-medium rounded-lg border transition-colors #{floor_button_class(floor_state(@filters, "altul"))}"}
           >
             <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />

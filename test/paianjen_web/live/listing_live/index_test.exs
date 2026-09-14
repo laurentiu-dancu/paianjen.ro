@@ -88,34 +88,62 @@ defmodule PaianjenWeb.ListingLive.IndexTest do
   end
 
   describe "floor selector" do
-    test "selecting an option sets floor_type without submitting the form", %{conn: conn} do
+    test "clicking a floor button cycles include -> exclude -> neutral without submitting", %{
+      conn: conn
+    } do
       insert_groups!(1)
 
       {:ok, view, _html} = live(authed_conn(conn), "/listari")
 
-      view |> element("button[phx-click=select_floor_parter]") |> render_click()
+      parter_btn =
+        view |> element("button[phx-click=toggle_floor][phx-value-floor=parter]")
 
-      # If the click had auto-submitted the filter form, apply_filters would
-      # reset floor_type to "" — so the hidden input reflecting "parter" proves
-      # the toggle handler ran (no navigation).
-      assert render(view) =~ ~s(name="floor_type" value="parter")
+      # 1st click: include (indigo) — still on the same page (no navigation).
+      render_click(parter_btn)
+      assert render(parter_btn) =~ "bg-indigo-50 border-indigo-300 text-indigo-700"
+
+      # 2nd click: exclude (red).
+      render_click(parter_btn)
+      assert render(parter_btn) =~ "bg-red-50 border-red-300 text-red-700"
+
+      # 3rd click: back to neutral (grey/white).
+      render_click(parter_btn)
+      assert render(parter_btn) =~ "bg-white border-slate-200 text-slate-600 hover:border-slate-300"
     end
 
-    test "one or none selectable at a time (radio behaviour)", %{conn: conn} do
+    test "multiple floor buckets can be included at the same time", %{conn: conn} do
       insert_groups!(1)
 
       {:ok, view, _html} = live(authed_conn(conn), "/listari")
 
-      view |> element("button[phx-click=select_floor_parter]") |> render_click()
-      assert render(view) =~ ~s(name="floor_type" value="parter")
+      view |> element("button[phx-click=toggle_floor][phx-value-floor=parter]") |> render_click()
+      view |> element("button[phx-click=toggle_floor][phx-value-floor=final]") |> render_click()
 
-      # Selecting a different option moves the selection (mutually exclusive).
-      view |> element("button[phx-click=select_floor_final]") |> render_click()
-      assert render(view) =~ ~s(name="floor_type" value="final")
+      parter_html = render(view |> element("button[phx-click=toggle_floor][phx-value-floor=parter]"))
+      final_html = render(view |> element("button[phx-click=toggle_floor][phx-value-floor=final]"))
 
-      # Clicking the already-active option clears it back to none.
-      view |> element("button[phx-click=select_floor_final]") |> render_click()
-      assert render(view) =~ ~s(name="floor_type" value="")
+      assert parter_html =~ "bg-indigo-50 border-indigo-300 text-indigo-700"
+      assert final_html =~ "bg-indigo-50 border-indigo-300 text-indigo-700"
+    end
+
+    test "submitting the filter form pushes include/exclude floor buckets in the URL", %{
+      conn: conn
+    } do
+      insert_groups!(1)
+
+      {:ok, view, _html} = live(authed_conn(conn), "/listari")
+
+      view |> element("button[phx-click=toggle_floor][phx-value-floor=parter]") |> render_click()
+      view |> element("button[phx-click=toggle_floor][phx-value-floor=final]") |> render_click()
+      view |> element("button[phx-click=toggle_floor][phx-value-floor=altul]") |> render_click()
+      view |> element("button[phx-click=toggle_floor][phx-value-floor=altul]") |> render_click()
+
+      view |> element("form[phx-submit=apply_filters]") |> render_submit()
+
+      assert_redirect(
+        view,
+        ~p"/listari?page=1&floor_include%5B%5D=parter&floor_include%5B%5D=final&floor_exclude%5B%5D=altul"
+      )
     end
   end
 
